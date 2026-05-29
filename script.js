@@ -40,7 +40,7 @@ const CHARACTERS = {
     name:        'MOLLY',
     type:        'dog',
     /** FILE: assets/images/Molly.png — Pomeranian in battle armor */
-    img:         'assets/images/Molly.png',
+    img:         'images/Molly.png',
     sound:       'bark',              // triggers playDogBark()
     level:       'THE HOUSE',
     setting:     'House littered with shirts and clothes',
@@ -54,7 +54,7 @@ const CHARACTERS = {
     name:        'AGATA',
     type:        'cat',
     /** FILE: assets/images/Agata.png — Gray armored cat w/ backpack */
-    img:         'assets/images/Agata.png',
+    img:         'images/Agata.png',
     sound:       'meow',
     level:       'THE FOREST',
     setting:     'Dense low-poly forest',
@@ -68,7 +68,7 @@ const CHARACTERS = {
     name:        'MARTÍN',
     type:        'cat',
     /** FILE: assets/images/Martin.png — Brown/white cat in leather armor */
-    img:         'assets/images/Martin.png',
+    img:         'images/Martin.png',
     sound:       'meow',
     level:       'THE DESERT',
     setting:     'Arid, barren desert with ancient ruins',
@@ -82,7 +82,7 @@ const CHARACTERS = {
     name:        'MICHI',
     type:        'cat',
     /** FILE: assets/images/Michi.png — White/black cat in scale armor */
-    img:         'assets/images/Michi.png',
+    img:         'images/Michi.png',
     sound:       'meow',
     level:       'THE BATHROOM',
     setting:     'Residential house — bath time horror',
@@ -102,7 +102,7 @@ const CHARACTERS = {
 const VET = {
   id:          'vet',
   name:        'THE VET',
-  img:         'assets/images/Veterinaria.png',
+  img:         'images/Veterinaria.png',
   patrolSpeed: 2.5,   // world units/sec
   chaseSpeed:  5.0,
   visionDeg:   60,    // half-angle of vision cone
@@ -244,11 +244,11 @@ function changeScreen(name) {
  *   Molly.png, Agata.png, Martin.png, Michi.png, Veterinaria.png
  */
 const PRELOAD_IMAGES = [
-  { key: 'molly',       src: 'assets/images/Molly.png' },
-  { key: 'agata',       src: 'assets/images/Agata.png' },
-  { key: 'martin',      src: 'assets/images/Martin.png' },
-  { key: 'michi',       src: 'assets/images/Michi.png' },
-  { key: 'vet',         src: 'assets/images/Veterinaria.png' },
+  { key: 'molly',       src: 'images/Molly.png' },
+  { key: 'agata',       src: 'images/Agata.png' },
+  { key: 'martin',      src: 'images/Martin.png' },
+  { key: 'michi',       src: 'images/Michi.png' },
+  { key: 'vet',         src: 'images/Veterinaria.png' },
 ];
 
 const $loadBar = document.getElementById('loadBar');

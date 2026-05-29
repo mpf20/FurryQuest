@@ -1,0 +1,535 @@
+/* ═══════════════════════════════════════════════════════════════
+   FURRY ESCAPADES: OUTSMART THE VET  ·  style.css
+   6th-Gen Console Retro Aesthetic (PS2 / GameCube era)
+   ═══════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* ── VARIABLES ─────────────────────────────────────────────────── */
+:root {
+  --font:          'Press Start 2P', monospace;
+  --bg:            #04060e;
+  --panel-bg:      #080d1c;
+
+  /* Character theme accents */
+  --molly:         #c860ff;   /* Purple  — house/laundry */
+  --molly-dark:    #1a003a;
+  --molly-mid:     #5a006e;
+
+  --agata:         #00e86a;   /* Green   — forest */
+  --agata-dark:    #001a0a;
+  --agata-mid:     #003d18;
+
+  --martin:        #ff9020;   /* Sandy/Orange — desert */
+  --martin-dark:   #1a0a00;
+  --martin-mid:    #4a2000;
+
+  --michi:         #00b8ff;   /* Blue    — bathroom */
+  --michi-dark:    #000d1a;
+  --michi-mid:     #002040;
+
+  /* Shared neon */
+  --cyan:          #00f5ff;
+  --yellow:        #ffe600;
+  --pink:          #ff2d78;
+  --green:         #39ff14;
+
+  --text:          #e0e0cc;
+  --dim:           #556070;
+
+  --glow-cyan:     0 0 8px #00f5ff, 0 0 20px rgba(0,245,255,.35);
+  --glow-yellow:   0 0 8px #ffe600, 0 0 20px rgba(255,230,0,.35);
+}
+
+/* ── RESET ──────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: var(--font);
+  color: var(--text);
+  image-rendering: pixelated;
+}
+
+/* ── SCREEN SYSTEM ──────────────────────────────────────────────── */
+.screen {
+  position: fixed; inset: 0;
+  display: none;
+  background: var(--bg);
+  overflow: hidden;
+  z-index: 10;
+}
+.screen.active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+/* ── CRT SCANLINES ──────────────────────────────────────────────── */
+.scanlines {
+  position: absolute; inset: 0; pointer-events: none; z-index: 200;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0, transparent 3px,
+    rgba(0,0,0,.07) 3px, rgba(0,0,0,.07) 4px
+  );
+}
+.scanlines-light {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0, transparent 3px,
+    rgba(0,0,0,.04) 3px, rgba(0,0,0,.04) 4px
+  );
+}
+
+/* ── ANIMATIONS ─────────────────────────────────────────────────── */
+@keyframes blink    { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes flicker  { 0%,18%,20%,26%,28%,100%{opacity:1} 19%,25%,27%{opacity:.7} }
+@keyframes floatY   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-9px)} }
+@keyframes glow     { from{filter:drop-shadow(0 0 8px var(--pink))} to{filter:drop-shadow(0 0 22px var(--pink))} }
+@keyframes quadIn   { from{opacity:0;transform:scale(.96)} to{opacity:1;transform:scale(1)} }
+@keyframes selectPop{ 0%{transform:scale(1)} 35%{transform:scale(1.07)} 70%{transform:scale(.97)} 100%{transform:scale(1)} }
+@keyframes shimmer  { 0%{background-position:200% center} 100%{background-position:-200% center} }
+
+.blink { animation: blink 1.3s step-end infinite; }
+
+/* ═══════════════════════════════════════════════════════════════
+   LOADING SCREEN
+   ═══════════════════════════════════════════════════════════════ */
+#screen-loading { background: var(--bg); }
+
+.loading-wrap {
+  display: flex; flex-direction: column; align-items: center; gap: 1.6rem;
+  text-align: center;
+}
+
+.load-title { display: flex; flex-direction: column; gap: .5rem; align-items: center; }
+
+.lt-furry {
+  font-size: clamp(2rem, 6vw, 4rem);
+  color: var(--yellow);
+  text-shadow: var(--glow-yellow), 4px 4px 0 #5a4800;
+  letter-spacing: .12em;
+  animation: flicker 5s infinite;
+}
+.lt-escapades {
+  font-size: clamp(.9rem, 2.5vw, 1.6rem);
+  color: var(--cyan);
+  text-shadow: var(--glow-cyan);
+  letter-spacing: .3em;
+}
+.lt-sub {
+  font-size: clamp(.35rem, 1vw, .6rem);
+  color: var(--pink);
+  letter-spacing: .25em;
+  text-shadow: 0 0 8px var(--pink);
+}
+
+.load-bar-outer {
+  width: clamp(200px, 55vw, 500px); height: 20px;
+  border: 3px solid var(--cyan); box-shadow: var(--glow-cyan);
+  background: rgba(0,245,255,.05);
+}
+.load-bar-inner {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  box-shadow: 0 0 14px var(--cyan);
+  transition: width .1s linear;
+}
+.load-pct  { font-size: .65rem; color: var(--green); text-shadow: 0 0 6px var(--green); }
+.load-tip  { font-size: .38rem; color: var(--dim); letter-spacing: .1em; }
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN MENU
+   ═══════════════════════════════════════════════════════════════ */
+#screen-mainmenu {
+  background: radial-gradient(ellipse at 50% 30%, rgba(0,80,40,.22) 0%, transparent 65%), var(--bg);
+}
+.mm-wrap {
+  display: flex; flex-direction: column; align-items: center; gap: 1.8rem;
+  z-index: 10; padding: 2rem 1rem;
+}
+.mm-title {
+  font-size: clamp(1.4rem, 4.5vw, 3rem);
+  color: var(--yellow);
+  text-shadow: var(--glow-yellow), 5px 5px 0 #5a4800;
+  letter-spacing: .1em;
+  animation: flicker 6s infinite;
+  text-align: center;
+}
+.mm-subtitle {
+  font-size: clamp(.4rem, 1.2vw, .8rem);
+  color: var(--pink); letter-spacing: .35em;
+  text-shadow: 0 0 8px var(--pink); margin-top: .4rem;
+  text-align: center;
+}
+.mm-vet { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
+.mm-vet-img {
+  height: clamp(130px, 20vh, 220px); width: auto; object-fit: contain;
+  mix-blend-mode: lighten;
+  animation: floatY 3s ease-in-out infinite, glow 2s ease-in-out infinite alternate;
+}
+.mm-vet-label { font-size: .4rem; color: var(--pink); text-shadow: 0 0 6px var(--pink); letter-spacing: .12em; }
+.mm-nav { display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+.mm-footer { font-size: .4rem; color: var(--dim); letter-spacing: .12em; }
+
+/* ═══════════════════════════════════════════════════════════════
+   BUTTONS  (shared)
+   ═══════════════════════════════════════════════════════════════ */
+.btn {
+  font-family: var(--font); font-size: clamp(.45rem, 1.3vw, .7rem);
+  cursor: pointer; padding: .85em 2.2em; letter-spacing: .1em;
+  border: 3px solid currentColor; background: transparent;
+  text-transform: uppercase; transition: transform .1s, box-shadow .1s;
+  min-width: 200px; position: relative;
+}
+.btn:hover, .btn:focus  { transform: translate(-2px,-2px); outline: none; }
+.btn:active             { transform: translate(1px,1px); }
+
+.btn-green { color: var(--green); box-shadow: 4px 4px 0 #1a4a08, 0 0 10px rgba(57,255,20,.3); }
+.btn-green:hover { background: rgba(57,255,20,.08); box-shadow: 6px 6px 0 #1a4a08, 0 0 18px rgba(57,255,20,.5); }
+
+.btn-cyan  { color: var(--cyan);  box-shadow: 4px 4px 0 #00404a, 0 0 10px rgba(0,245,255,.3); }
+.btn-cyan:hover  { background: rgba(0,245,255,.07); box-shadow: 6px 6px 0 #00404a, 0 0 18px rgba(0,245,255,.5); }
+
+.btn-back  { color: var(--dim); border-color: var(--dim); box-shadow: 3px 3px 0 #0d0d18; min-width: 140px; }
+.btn-back:hover { color: var(--cyan); border-color: var(--cyan); }
+
+/* ═══════════════════════════════════════════════════════════════
+   HOW TO PLAY
+   ═══════════════════════════════════════════════════════════════ */
+.howto-panel {
+  max-width: 680px; width: 90%; z-index: 10;
+  border: 3px solid var(--cyan); box-shadow: var(--glow-cyan);
+  background: var(--panel-bg); padding: 2.5rem 2rem;
+  display: flex; flex-direction: column; gap: 1.5rem; align-items: center;
+}
+.panel-title { font-size: clamp(.8rem, 2.5vw, 1.3rem); letter-spacing: .15em; text-align: center; }
+.yellow { color: var(--yellow); text-shadow: var(--glow-yellow), 3px 3px 0 #5a4800; }
+
+.controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem 1.6rem; width: 100%; }
+.ctrl { display: flex; flex-direction: column; gap: .3rem; border: 2px solid rgba(0,245,255,.18); padding: .6rem .8rem; }
+.key  { font-size: .52rem; color: var(--green); text-shadow: 0 0 5px var(--green); }
+.kdesc{ font-size: .38rem; color: var(--dim); }
+
+.tips { display: flex; flex-direction: column; gap: .6rem; width: 100%; border-top: 1px dashed rgba(0,245,255,.2); padding-top: 1rem; }
+.tips p { font-size: .36rem; line-height: 1.9; color: var(--text); }
+.tips strong { color: var(--yellow); }
+
+/* ═══════════════════════════════════════════════════════════════
+   CHARACTER SELECTION — 2×2 FULL-VIEWPORT COLLAGE
+   This is the centrepiece of Step 1. The grid MUST fill 100vw × 100vh.
+   ═══════════════════════════════════════════════════════════════ */
+#screen-charselect {
+  /* Override default flex centering — grid IS the layout */
+  display: block !important;
+  overflow: hidden;
+}
+
+/* Floating header badge positioned above the grid */
+.cs-header-badge {
+  position: absolute; top: 0; left: 0; right: 0;
+  z-index: 300; pointer-events: none;
+  display: flex; justify-content: center;
+  padding: .6rem;
+}
+.cs-header-badge span {
+  font-size: clamp(.38rem, 1.2vw, .65rem);
+  color: var(--yellow); letter-spacing: .22em;
+  text-shadow: var(--glow-yellow);
+  background: rgba(4,6,14,.75); padding: .35em .9em;
+  border: 2px solid rgba(255,230,0,.4);
+}
+
+/* ── The 2×2 grid — covers full viewport ── */
+.collage-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  width: 100vw; height: 100vh;
+  gap: 0;
+  position: absolute; inset: 0;
+}
+
+/* Back button floats over the grid */
+.cs-back-btn {
+  position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%);
+  z-index: 300; min-width: 120px;
+  font-size: .38rem; padding: .55em 1.2em;
+}
+
+/* ── QUADRANT BASE ── */
+.quad {
+  position: relative; overflow: hidden;
+  cursor: pointer; border: 0;
+  transition: z-index 0s;
+  animation: quadIn .5s ease-out both;
+}
+.quad:nth-child(1){ animation-delay:.05s }
+.quad:nth-child(2){ animation-delay:.12s }
+.quad:nth-child(3){ animation-delay:.19s }
+.quad:nth-child(4){ animation-delay:.26s }
+
+/* Inner border glow on hover */
+.quad::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  border: 4px solid transparent;
+  transition: border-color .18s, box-shadow .18s;
+  z-index: 50;
+}
+.quad-molly:hover::after, .quad-molly:focus::after { border-color: var(--molly); box-shadow: inset 0 0 30px rgba(200,96,255,.18); }
+.quad-agata:hover::after, .quad-agata:focus::after  { border-color: var(--agata); box-shadow: inset 0 0 30px rgba(0,232,106,.18); }
+.quad-martin:hover::after,.quad-martin:focus::after { border-color: var(--martin); box-shadow: inset 0 0 30px rgba(255,144,32,.18); }
+.quad-michi:hover::after, .quad-michi:focus::after  { border-color: var(--michi); box-shadow: inset 0 0 30px rgba(0,184,255,.18); }
+.quad:focus { outline: none; }
+
+.quad.selected { animation: selectPop .35s ease-out; }
+
+/* ── THEMATIC BACKGROUNDS ── */
+.quad-bg {
+  position: absolute; inset: 0; z-index: 0;
+  transition: opacity .2s;
+}
+
+/* MOLLY — Purple gradient, laundry-room vibe */
+.quad-molly .quad-bg {
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(160,0,220,.45) 0%, transparent 60%),
+    linear-gradient(145deg, #0d0018 0%, #1f0040 35%, #3a0060 65%, #180030 100%);
+}
+.quad-molly:hover .quad-bg { opacity: 1.0; }
+
+/* AGATA — Deep forest greens */
+.quad-agata .quad-bg {
+  background:
+    radial-gradient(ellipse at 65% 35%, rgba(0,160,60,.4) 0%, transparent 55%),
+    linear-gradient(145deg, #000e04 0%, #001e08 35%, #003515 65%, #001008 100%);
+}
+
+/* MARTÍN — Sandy/orange desert */
+.quad-martin .quad-bg {
+  background:
+    radial-gradient(ellipse at 35% 60%, rgba(200,100,0,.4) 0%, transparent 55%),
+    linear-gradient(145deg, #100600 0%, #280e00 35%, #4a1c00 65%, #1e0a00 100%);
+}
+
+/* MICHI — Bathroom tile blues */
+.quad-michi .quad-bg {
+  background:
+    radial-gradient(ellipse at 70% 30%, rgba(0,120,200,.4) 0%, transparent 55%),
+    linear-gradient(145deg, #00060f 0%, #000e22 35%, #001840 65%, #000a1a 100%);
+}
+
+/* ── DECORATIVE EMOJI LAYER ── */
+.quad-deco {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  overflow: hidden;
+}
+.deco-item {
+  position: absolute; font-size: clamp(1rem, 3vw, 1.8rem);
+  opacity: .22; pointer-events: none;
+  transition: opacity .2s;
+}
+.quad:hover .deco-item { opacity: .38; }
+
+/* ── QUADRANT CONTENT LAYOUT ── */
+.quad-content {
+  position: relative; z-index: 10;
+  height: 100%; width: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: space-between;
+  padding: clamp(.5rem, 2vw, 1.2rem) clamp(.4rem, 1.5vw, 1rem);
+}
+
+/* Index badge (01, 02, 03, 04) */
+.quad-index {
+  align-self: flex-start;
+  font-size: clamp(.28rem, .8vw, .45rem);
+  color: rgba(255,255,255,.18); letter-spacing: .08em;
+}
+
+/* ── AVATAR FRAME — retro bordered photo frame ── */
+.avatar-frame {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%;
+  /* Hard border frame — PS2 style */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  padding: 4px;
+  transition: transform .2s;
+  max-height: 48%;
+  min-height: 80px;
+}
+.quad:hover .avatar-frame { transform: scale(1.05) translateY(-4px); }
+
+/* Per-character frame color */
+.frame-molly  { border-color: var(--molly);  box-shadow: 0 0 12px rgba(200,96,255,.5); }
+.frame-agata  { border-color: var(--agata);  box-shadow: 0 0 12px rgba(0,232,106,.5); }
+.frame-martin { border-color: var(--martin); box-shadow: 0 0 12px rgba(255,144,32,.5); }
+.frame-michi  { border-color: var(--michi);  box-shadow: 0 0 12px rgba(0,184,255,.5); }
+
+.avatar-img {
+  /*
+    PET BILLBOARD PHOTOS:
+    mix-blend-mode: lighten removes the black background from
+    the pet photos. In Three.js (Step 2) use alphaTest: 0.1
+    on MeshBasicMaterial to achieve the same billboard effect.
+  */
+  max-height: 100%; max-width: 100%;
+  object-fit: contain;
+  mix-blend-mode: lighten;
+  display: block;
+}
+
+/* Glow effect on hover, themed per character */
+.quad-molly:hover  .avatar-img { filter: drop-shadow(0 0 14px rgba(200,96,255,.8)); }
+.quad-agata:hover  .avatar-img { filter: drop-shadow(0 0 14px rgba(0,232,106,.8)); }
+.quad-martin:hover .avatar-img { filter: drop-shadow(0 0 14px rgba(255,144,32,.8)); }
+.quad-michi:hover  .avatar-img { filter: drop-shadow(0 0 14px rgba(0,184,255,.8)); }
+
+/* ── CHAR INFO BLOCK ── */
+.quad-info {
+  display: flex; flex-direction: column; gap: .2rem; align-self: flex-start; width: 100%;
+}
+
+.char-name {
+  font-size: clamp(.65rem, 2.2vw, 1.15rem);
+  letter-spacing: .1em;
+  line-height: 1.2;
+}
+.molly-text  { color: var(--molly);  text-shadow: 0 0 8px var(--molly),  2px 2px 0 #1a003a; }
+.agata-text  { color: var(--agata);  text-shadow: 0 0 8px var(--agata),  2px 2px 0 #001a0a; }
+.martin-text { color: var(--martin); text-shadow: 0 0 8px var(--martin), 2px 2px 0 #1a0800; }
+.michi-text  { color: var(--michi);  text-shadow: 0 0 8px var(--michi),  2px 2px 0 #000d1a; }
+
+.char-type   { font-size: clamp(.28rem,.8vw,.42rem); color: var(--dim); letter-spacing: .08em; }
+
+.char-mission { display: flex; flex-direction: column; gap: .12rem; margin-top: .15rem; }
+.mission-lbl  { font-size: clamp(.22rem,.65vw,.34rem); color: var(--dim); letter-spacing: .1em; }
+.mission-txt  { font-size: clamp(.26rem,.75vw,.38rem); color: var(--text); line-height: 1.6; }
+
+.char-map    { font-size: clamp(.22rem,.65vw,.34rem); color: var(--dim); margin-top: .1rem; }
+.char-reward { font-size: clamp(.22rem,.65vw,.34rem); color: var(--dim); }
+
+/* ── HIDING SPOTS TAGS ── */
+.hiding-tags { display: flex; flex-wrap: wrap; gap: .25rem; align-self: flex-start; }
+.htag {
+  font-size: clamp(.2rem,.55vw,.3rem); letter-spacing: .06em;
+  padding: .2em .5em; border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.4); color: var(--dim);
+  white-space: nowrap;
+}
+
+/* ── SELECT CTA ── */
+.quad-cta {
+  font-size: clamp(.22rem,.6vw,.32rem);
+  letter-spacing: .15em;
+  align-self: center;
+  opacity: 0; transition: opacity .2s;
+  padding-bottom: .2rem;
+}
+.quad:hover .quad-cta, .quad:focus .quad-cta { opacity: 1; }
+
+.quad-molly  .quad-cta { color: var(--molly); }
+.quad-agata  .quad-cta { color: var(--agata); }
+.quad-martin .quad-cta { color: var(--martin); }
+.quad-michi  .quad-cta { color: var(--michi); }
+
+/* ── CORNER CHROME ── */
+.corner-tl, .corner-br {
+  position: absolute; width: 14px; height: 14px; z-index: 30; pointer-events: none;
+}
+.corner-tl { top: 4px; left: 4px;   border-top: 3px solid; border-left: 3px solid; }
+.corner-br { bottom: 4px; right: 4px; border-bottom: 3px solid; border-right: 3px solid; }
+
+.quad-molly  .corner-tl, .quad-molly  .corner-br { border-color: var(--molly); }
+.quad-agata  .corner-tl, .quad-agata  .corner-br { border-color: var(--agata); }
+.quad-martin .corner-tl, .quad-martin .corner-br { border-color: var(--martin); }
+.quad-michi  .corner-tl, .quad-michi  .corner-br { border-color: var(--michi); }
+
+/* Centre crosshair divider */
+.collage-grid::before {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none; z-index: 100;
+  background:
+    /* horizontal line */
+    linear-gradient(to bottom, transparent calc(50% - 1px), rgba(255,255,255,.12) calc(50% - 1px), rgba(255,255,255,.12) calc(50% + 1px), transparent calc(50% + 1px)),
+    /* vertical line */
+    linear-gradient(to right,  transparent calc(50% - 1px), rgba(255,255,255,.12) calc(50% - 1px), rgba(255,255,255,.12) calc(50% + 1px), transparent calc(50% + 1px));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CONFIRM SCREEN
+   ═══════════════════════════════════════════════════════════════ */
+.confirm-panel {
+  border: 3px solid var(--cyan); box-shadow: var(--glow-cyan);
+  background: var(--panel-bg); padding: 2.4rem 2rem;
+  display: flex; flex-direction: column; align-items: center; gap: 1.8rem;
+  max-width: 580px; width: 90%; z-index: 10;
+}
+.confirm-title { font-size: clamp(.7rem, 2vw, 1.1rem); letter-spacing: .15em; text-align: center; }
+.confirm-display { display: flex; align-items: center; gap: 1.8rem; width: 100%; }
+.confirm-avatar {
+  height: 150px; width: auto; object-fit: contain;
+  mix-blend-mode: lighten; flex-shrink: 0;
+  filter: drop-shadow(0 0 16px rgba(0,245,255,.5));
+}
+.confirm-details { display: flex; flex-direction: column; gap: .6rem; }
+.confirm-name  { font-size: clamp(.8rem, 2.5vw, 1.3rem); color: var(--cyan); text-shadow: var(--glow-cyan); }
+.confirm-level { font-size: .42rem; color: var(--dim); letter-spacing: .08em; }
+.confirm-obj   { font-size: .36rem; color: var(--text); line-height: 1.8; }
+.confirm-btns  { display: flex; gap: 1.4rem; flex-wrap: wrap; justify-content: center; }
+
+/* ═══════════════════════════════════════════════════════════════
+   GAME SCREEN & HUD
+   ═══════════════════════════════════════════════════════════════ */
+#screen-game { background: #000; }
+#gameCanvasWrap { position: absolute; inset: 0; }
+#gameCanvas { width: 100%; height: 100%; display: block; }
+
+#hud {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; align-items: center; gap: 1.5rem;
+  padding: .8rem 1.2rem;
+  background: linear-gradient(to bottom, rgba(0,0,0,.72) 0%, transparent 100%);
+  pointer-events: none; z-index: 50;
+}
+.hud-charname  { font-size: .52rem; color: var(--cyan); text-shadow: var(--glow-cyan); letter-spacing: .1em; }
+.hud-center    { display: flex; align-items: center; gap: .5rem; }
+.hud-lbl       { font-size: .3rem; color: var(--dim); letter-spacing: .06em; white-space: nowrap; }
+.hud-prox-bg   { width: 110px; height: 10px; border: 2px solid rgba(255,45,120,.5); background: rgba(255,45,120,.1); }
+.hud-prox-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--yellow), var(--pink)); transition: width .2s; }
+.hud-right     { margin-left: auto; }
+.hud-status    { font-size: .38rem; color: var(--green); letter-spacing: .1em; }
+
+.hud-pause {
+  position: absolute; bottom: 1.1rem; right: 1.1rem;
+  pointer-events: all; min-width: auto; padding: .5em 1em;
+  font-size: .36rem; z-index: 51;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* On very small screens, shrink font sizes in the quad */
+@media (max-width: 600px) {
+  .char-map, .char-reward, .hiding-tags, .char-mission { display: none; }
+  .char-type { display: none; }
+  .avatar-frame { max-height: 55%; }
+}
+
+/* On portrait mobile, stack the grid 2×2 still but allow scroll */
+@media (max-width: 480px) and (orientation: portrait) {
+  .collage-grid { height: 100svh; }
+}
+
+/* Landscape small (phones) — keep it usable */
+@media (max-height: 500px) {
+  .quad-info { gap: .1rem; }
+  .char-map, .char-reward, .hiding-tags { display: none; }
+}
+
+/* Wide — allow a bit more breathing room on large monitors */
+@media (min-width: 1400px) {
+  .char-name { font-size: 1.3rem; }
+}

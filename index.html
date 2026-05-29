@@ -9,9 +9,6 @@
 </head>
 <body>
 
-  <!-- ══════════════════════════════════════════════════════
-       SCREEN: LOADING
-  ══════════════════════════════════════════════════════ -->
   <div id="screen-loading" class="screen active">
     <div class="loading-wrap">
       <div class="load-title">
@@ -27,9 +24,6 @@
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════
-       SCREEN: MAIN MENU
-  ══════════════════════════════════════════════════════ -->
   <div id="screen-mainmenu" class="screen">
     <div class="scanlines"></div>
     <div class="mm-wrap">
@@ -38,9 +32,6 @@
         <div class="mm-subtitle">◆ OUTSMART THE VET ◆</div>
       </div>
 
-      <!-- Vet antagonist billboard
-           SOURCE: images/Veterinaria.png
-           Shown on title screen, rendered as billboard sprite in Step 2 levels -->
       <div class="mm-vet">
         <img src="images/Veterinaria.png" alt="The Vet" class="mm-vet-img" id="vetTitleImg" />
         <div class="mm-vet-label blink">⚠ THE VET AWAITS ⚠</div>
@@ -55,9 +46,6 @@
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════
-       SCREEN: HOW TO PLAY
-  ══════════════════════════════════════════════════════ -->
   <div id="screen-howtoplay" class="screen">
     <div class="scanlines"></div>
     <div class="howto-panel">
@@ -78,40 +66,20 @@
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════
-       SCREEN: CHARACTER SELECTION — 2×2 FULL-VIEWPORT COLLAGE
-       This is the hero screen. Each quadrant fills 50vw × 50vh,
-       covering the entire viewport with no gaps or padding.
-
-       QUADRANT THEMES:
-         Top-Left     → MOLLY   — House/laundry room (Purple)
-         Top-Right    → AGATA   — Forest (Green)
-         Bottom-Left  → MARTÍN  — Desert (Sandy/Orange)
-         Bottom-Right → MICHI   — Bathroom (Blue)
-  ══════════════════════════════════════════════════════ -->
   <div id="screen-charselect" class="screen">
     <div class="scanlines scanlines-light"></div>
 
-    <!-- Floating header badge (overlaid on the collage) -->
     <div class="cs-header-badge">
       <span>SELECT YOUR HERO</span>
     </div>
 
     <div class="collage-grid" id="collageGrid">
 
-      <!-- ┌────────────────────────────────────────┐
-           │  QUADRANT: MOLLY — House/Laundry       │
-           │  Theme color: Purple                   │
-           │  Mission: Steal & hide clothes         │
-           └────────────────────────────────────────┘ -->
-      <div class="quad quad-molly" id="cardMolly"
-           data-char="molly" data-sound="bark"
+      <div class="quad quad-molly" id="cardMolly" data-char="molly" 
            role="button" tabindex="0" aria-label="Select Molly the dog">
 
-        <!-- Thematic background layers (CSS + inline decorators) -->
         <div class="quad-bg"></div>
         <div class="quad-deco quad-deco-molly">
-          <!-- Scattered shirt icons for laundry room vibe -->
           <span class="deco-item" style="top:12%;left:8%">👕</span>
           <span class="deco-item" style="top:28%;left:78%">🧺</span>
           <span class="deco-item" style="top:68%;left:14%">👔</span>
@@ -119,18 +87,12 @@
         </div>
 
         <div class="quad-content">
-          <!-- INDEX BADGE -->
           <div class="quad-index">01</div>
 
-          <!-- PET AVATAR FRAME
-               SOURCE: images/Molly.png
-               Pomeranian dog in battle armor. mix-blend-mode strips black BG. -->
-          <div class="avatar-frame frame-molly">
-            <img src="images/Molly.png"
-                 alt="Molly" class="avatar-img" id="avatarMolly" />
+          <div class="avatar-frame frame-molly" style="position: relative; z-index: 10;">
+            <img src="images/Molly.png" alt="Molly" class="avatar-img" id="avatarMolly" style="display: block; max-width: 100%; height: auto; margin: 0 auto;" />
           </div>
 
-          <!-- INFO BLOCK -->
           <div class="quad-info">
             <div class="char-name molly-text">MOLLY</div>
             <div class="char-type">🐶 DOG WARRIOR</div>
@@ -142,7 +104,6 @@
             <div class="char-reward">🏆 REWARD: 🦴 BONE</div>
           </div>
 
-          <!-- HIDING SPOTS TAGS -->
           <div class="hiding-tags">
             <span class="htag">Under Bed</span>
             <span class="htag">Sofa</span>
@@ -152,19 +113,9 @@
           <div class="quad-cta blink">— TAP TO SELECT —</div>
         </div>
 
-        <!-- Corner chrome -->
         <div class="corner-tl"></div>
         <div class="corner-br"></div>
-      </div><!-- /quad-molly -->
-
-
-      <!-- ┌────────────────────────────────────────┐
-           │  QUADRANT: AGATA — Dense Forest        │
-           │  Theme color: Green                    │
-           │  Mission: Escape nail clippers         │
-           └────────────────────────────────────────┘ -->
-      <div class="quad quad-agata" id="cardAgata"
-           data-char="agata" data-sound="meow"
+      </div><div class="quad quad-agata" id="cardAgata" data-char="agata" 
            role="button" tabindex="0" aria-label="Select Agata the cat">
 
         <div class="quad-bg"></div>
@@ -178,12 +129,8 @@
         <div class="quad-content">
           <div class="quad-index">02</div>
 
-          <!-- PET AVATAR FRAME
-               SOURCE: images/Agata.png
-               Gray armored cat with compass backpack & glowing potions. -->
-          <div class="avatar-frame frame-agata">
-            <img src="images/Agata.png"
-                 alt="Agata" class="avatar-img" id="avatarAgata" />
+          <div class="avatar-frame frame-agata" style="position: relative; z-index: 10;">
+            <img src="images/Agata.png" alt="Agata" class="avatar-img" id="avatarAgata" style="display: block; max-width: 100%; height: auto; margin: 0 auto;" />
           </div>
 
           <div class="quad-info">
@@ -207,16 +154,7 @@
 
         <div class="corner-tl"></div>
         <div class="corner-br"></div>
-      </div><!-- /quad-agata -->
-
-
-      <!-- ┌────────────────────────────────────────┐
-           │  QUADRANT: MARTÍN — Arid Desert        │
-           │  Theme color: Sandy/Orange             │
-           │  Mission: Reach the water well         │
-           └────────────────────────────────────────┘ -->
-      <div class="quad quad-martin" id="cardMartin"
-           data-char="martin" data-sound="meow"
+      </div><div class="quad quad-martin" id="cardMartin" data-char="martin" 
            role="button" tabindex="0" aria-label="Select Martín the cat">
 
         <div class="quad-bg"></div>
@@ -230,12 +168,8 @@
         <div class="quad-content">
           <div class="quad-index">03</div>
 
-          <!-- PET AVATAR FRAME
-               SOURCE: images/Martin.png
-               Brown/white cat in ornate leather armor with blue gems. -->
-          <div class="avatar-frame frame-martin">
-            <img src="images/Martin.png"
-                 alt="Martín" class="avatar-img" id="avatarMartin" />
+          <div class="avatar-frame frame-martin" style="position: relative; z-index: 10;">
+            <img src="images/Martin.png" alt="Martín" class="avatar-img" id="avatarMartin" style="display: block; max-width: 100%; height: auto; margin: 0 auto;" />
           </div>
 
           <div class="quad-info">
@@ -259,16 +193,7 @@
 
         <div class="corner-tl"></div>
         <div class="corner-br"></div>
-      </div><!-- /quad-martin -->
-
-
-      <!-- ┌────────────────────────────────────────┐
-           │  QUADRANT: MICHI — Bathroom / Bathtub  │
-           │  Theme color: Blue                     │
-           │  Mission: Escape soap & towel          │
-           └────────────────────────────────────────┘ -->
-      <div class="quad quad-michi" id="cardMichi"
-           data-char="michi" data-sound="meow"
+      </div><div class="quad quad-michi" id="cardMichi" data-char="michi" 
            role="button" tabindex="0" aria-label="Select Michi the cat">
 
         <div class="quad-bg"></div>
@@ -282,12 +207,8 @@
         <div class="quad-content">
           <div class="quad-index">04</div>
 
-          <!-- PET AVATAR FRAME
-               SOURCE: images/Michi.png
-               White/black cat in scale armor with helmet and potion bottles. -->
-          <div class="avatar-frame frame-michi">
-            <img src="images/Michi.png"
-                 alt="Michi" class="avatar-img" id="avatarMichi" />
+          <div class="avatar-frame frame-michi" style="position: relative; z-index: 10;">
+            <img src="images/Michi.png" alt="Michi" class="avatar-img" id="avatarMichi" style="display: block; max-width: 100%; height: auto; margin: 0 auto;" />
           </div>
 
           <div class="quad-info">
@@ -312,23 +233,12 @@
 
         <div class="corner-tl"></div>
         <div class="corner-br"></div>
-      </div><!-- /quad-michi -->
-
-    </div><!-- /collage-grid -->
-
-    <button class="btn btn-back cs-back-btn" id="btnCSBack">◀ BACK</button>
-  </div><!-- /screen-charselect -->
-
-
-  <!-- ══════════════════════════════════════════════════════
-       SCREEN: CONFIRM CHARACTER
-  ══════════════════════════════════════════════════════ -->
-  <div id="screen-confirm" class="screen">
+      </div></div><button class="btn btn-back cs-back-btn" id="btnCSBack">◀ BACK</button>
+  </div><div id="screen-confirm" class="screen">
     <div class="scanlines"></div>
     <div class="confirm-panel">
       <div class="confirm-title yellow">READY FOR BATTLE?</div>
       <div class="confirm-display">
-        <!-- Populated dynamically by JS -->
         <img src="" alt="" class="confirm-avatar" id="confirmAvatar" />
         <div class="confirm-details">
           <div class="confirm-name"  id="confirmName">—</div>
@@ -344,21 +254,11 @@
   </div>
 
 
-  <!-- ══════════════════════════════════════════════════════
-       SCREEN: GAME
-       Three.js mounts into #gameCanvasWrap in Step 2.
-       The <canvas id="gameCanvas"> is the WebGL target.
-  ══════════════════════════════════════════════════════ -->
   <div id="screen-game" class="screen">
     <div id="gameCanvasWrap">
-      <!--
-        THREE.JS CANVAS MOUNT POINT (Step 2):
-        renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas') });
-      -->
       <canvas id="gameCanvas"></canvas>
     </div>
 
-    <!-- HUD Overlay -->
     <div id="hud">
       <div class="hud-left">
         <span class="hud-charname" id="hudCharName">—</span>
@@ -377,8 +277,6 @@
     <button class="btn btn-back hud-pause" id="btnPause">⏸ PAUSE</button>
   </div>
 
-
-  <!-- Three.js CDN (used in Step 2 for 3D level rendering) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="script.js"></script>
 </body>

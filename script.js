@@ -1,27 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════
- *  FURRY ESCAPADES: OUTSMART THE VET  ·  script.js  (v3 — full rewrite)
- *
- *  KEY CHANGES vs previous version:
- *  ✅  All image paths use flat  images/  folder (no assets/ prefix)
- *  ✅  Zero file-based audio — 100% Web Audio API synthesis
- *  ✅  Arabic-style in-game BGM built from oscillators + rhythmic pulses
- *  ✅  Menu music, meow SFX, bark SFX — all synthesised
- *  ✅  Screen flow fixed: confirm → game launches an actual gameplay loop
- *  ✅  Gameplay loop: top-down 2-D canvas chase scene with Vet AI,
- *      hiding spots, win/lose states and animated HUD
- *
- *  IMAGE PATHS (flat, case-sensitive):
- *    images/Molly.png
- *    images/Agata.png
- *    images/Martin.png
- *    images/Michi.png
- *    images/Veterinaria.png
- *
- *  SCREEN STATE MACHINE:
- *    loading → mainmenu ⇄ howtoplay
- *    mainmenu → charselect → confirm → game → win | lose
- *    win / lose → mainmenu
+ * FURRY ESCAPADES: OUTSMART THE VET  ·  script.js  (v4 — Enhanced)
  * ═══════════════════════════════════════════════════════════════════
  */
 'use strict';
@@ -32,7 +11,7 @@
 const CHARACTERS = {
   molly: {
     id: 'molly', name: 'MOLLY', type: 'dog',
-    img: 'images/Molly.png',          // flat images/ folder
+    img: 'images/Molly.png',
     sound: 'bark',
     level: 'THE HOUSE', setting: 'House littered with shirts and clothes',
     objective: 'Stash clothes & dodge the Vet!',
@@ -40,9 +19,9 @@ const CHARACTERS = {
     color: '#c860ff', colorRGB: '200,96,255',
     goalLabel: 'LAUNDRY BASKET',
     hidingSpots: [
-      { label: 'Under Bed',    x: 0.18, y: 0.20, w: 0.14, h: 0.08 },
-      { label: 'Sofa',         x: 0.65, y: 0.55, w: 0.16, h: 0.10 },
-      { label: 'Cabinet',      x: 0.35, y: 0.75, w: 0.12, h: 0.09 },
+      { label: 'Under Bed',    x: 0.18, y: 0.20, w: 0.14, h: 0.08, type: 'bed' },
+      { label: 'Sofa',         x: 0.65, y: 0.55, w: 0.16, h: 0.10, type: 'sofa' },
+      { label: 'Cabinet',      x: 0.35, y: 0.75, w: 0.12, h: 0.09, type: 'cabinet' },
     ],
     goalPos: { x: 0.80, y: 0.15 },
     playerStart: { x: 0.10, y: 0.85 },
@@ -59,9 +38,9 @@ const CHARACTERS = {
     color: '#00e86a', colorRGB: '0,232,106',
     goalLabel: 'FOREST EXIT',
     hidingSpots: [
-      { label: 'Tree Trunk',   x: 0.20, y: 0.30, w: 0.10, h: 0.14 },
-      { label: 'Bushes',       x: 0.55, y: 0.65, w: 0.15, h: 0.09 },
-      { label: 'Big Tree',     x: 0.75, y: 0.25, w: 0.10, h: 0.16 },
+      { label: 'Tree Trunk',   x: 0.20, y: 0.30, w: 0.10, h: 0.14, type: 'tree' },
+      { label: 'Bushes',       x: 0.55, y: 0.65, w: 0.15, h: 0.09, type: 'bush' },
+      { label: 'Big Tree',     x: 0.75, y: 0.25, w: 0.10, h: 0.16, type: 'tree' },
     ],
     goalPos: { x: 0.85, y: 0.12 },
     playerStart: { x: 0.08, y: 0.88 },
@@ -78,9 +57,9 @@ const CHARACTERS = {
     color: '#ff9020', colorRGB: '255,144,32',
     goalLabel: 'WATER WELL',
     hidingSpots: [
-      { label: 'Sand Dune',    x: 0.25, y: 0.35, w: 0.16, h: 0.10 },
-      { label: 'Ruins',        x: 0.60, y: 0.20, w: 0.14, h: 0.16 },
-      { label: 'Rock',         x: 0.40, y: 0.70, w: 0.10, h: 0.10 },
+      { label: 'Sand Dune',    x: 0.25, y: 0.35, w: 0.16, h: 0.10, type: 'dune' },
+      { label: 'Ruins',        x: 0.60, y: 0.20, w: 0.14, h: 0.16, type: 'ruins' },
+      { label: 'Rock',         x: 0.40, y: 0.70, w: 0.10, h: 0.10, type: 'rock' },
     ],
     goalPos: { x: 0.82, y: 0.10 },
     playerStart: { x: 0.08, y: 0.90 },
@@ -97,9 +76,9 @@ const CHARACTERS = {
     color: '#00b8ff', colorRGB: '0,184,255',
     goalLabel: 'CAT FLAP',
     hidingSpots: [
-      { label: 'Closet',         x: 0.15, y: 0.22, w: 0.11, h: 0.15 },
-      { label: 'Laundry Basket', x: 0.62, y: 0.60, w: 0.13, h: 0.11 },
-      { label: 'Bookshelf',      x: 0.80, y: 0.40, w: 0.10, h: 0.18 },
+      { label: 'Closet',         x: 0.15, y: 0.22, w: 0.11, h: 0.15, type: 'closet' },
+      { label: 'Laundry Basket', x: 0.62, y: 0.60, w: 0.13, h: 0.11, type: 'basket' },
+      { label: 'Bookshelf',      x: 0.80, y: 0.40, w: 0.10, h: 0.18, type: 'shelf' },
     ],
     goalPos: { x: 0.82, y: 0.12 },
     playerStart: { x: 0.08, y: 0.88 },
@@ -110,10 +89,10 @@ const CHARACTERS = {
 
 const VET = {
   img: 'images/Veterinaria.png',
-  patrolSpeed: 0.0018,   // fraction of canvas per frame
+  patrolSpeed: 0.0018,
   chaseSpeed:  0.0036,
-  visionAngle: 55,       // degrees half-cone
-  visionRange: 0.32,     // fraction of canvas
+  visionAngle: 55,
+  visionRange: 0.32,
 };
 
 
@@ -121,46 +100,45 @@ const VET = {
    §2  GAME STATE
 ───────────────────────────────────────────────────────────────── */
 const GS = {
-  screen:    'loading',   // active screen key
-  char:      null,        // selected CharacterData
-  images:    {},          // preloaded Image objects keyed by character id + 'vet'
+  screen:    'loading',
+  char:      null,
+  images:    {},
+  particles: [], // Sistema de explosión
 
-  // 2-D gameplay state
   game: {
     running:   false,
     paused:    false,
     rafId:     null,
     won:       false,
     lost:      false,
+    exploding: false, // Bloquea movimientos durante la animación de muerte
+    explodingTimer: 0,
 
-    // Player
-    px: 0.1, py: 0.9,    // normalised 0-1 canvas coords
+    px: 0.1, py: 0.9,
     pSpeed: 0.003,
-    hidden:  false,       // inside a hiding spot?
+    hidden:  false,
     hiddenSpot: null,
 
-    // Vet
     vx: 0.9, vy: 0.9,
-    vAngle: 180,          // facing direction degrees
-    vetMode: 'patrol',    // 'patrol' | 'chase' | 'lost'
+    vAngle: 180,
+    vetMode: 'patrol',
     lostTimer: 0,
     patrolTarget: null,
     patrolTimer: 0,
 
-    // Input
-    keys: {},
+    timeLeft: 20.0, // 20 Segundos límite de juego
+    lastTime: 0,
 
-    // Proximity 0-1 drives music tempo
+    keys: {},
     proximity: 0,
   },
 
-  // Audio
   audio: {
     ctx: null,
     bgmActive: false,
-    bgmNodes: [],         // all oscillator/gain nodes for current BGM
+    bgmNodes: [],
     bgmTimer: null,
-    inGameAudio: null,    // object with stop() for in-game music
+    inGameAudio: null,
   },
 };
 
@@ -191,12 +169,9 @@ function changeScreen(name) {
 
   GS.screen = name;
   SCREENS_EL[name].classList.add('active');
-  console.log('[Screen]', name);
 
-  // Side-effects
   switch (name) {
     case 'mainmenu':   stopInGameMusic(); startMenuBGM(); break;
-    case 'charselect': /* BGM continues */               break;
     case 'confirm':    buildConfirmScreen();              break;
     case 'game':       stopMenuBGM(); launchGame();       break;
     case 'win':        stopInGameMusic(); showResult(true);  break;
@@ -206,7 +181,7 @@ function changeScreen(name) {
 
 
 /* ─────────────────────────────────────────────────────────────────
-   §5  ASSET PRELOADER  (images only — no audio files)
+   §5  ASSET PRELOADER
 ───────────────────────────────────────────────────────────────── */
 const IMAGE_MANIFEST = [
   { key: 'molly',  src: 'images/Molly.png'       },
@@ -229,7 +204,10 @@ function preloadImages() {
         if (done === total) resolve();
       };
       img.onload  = finish;
-      img.onerror = finish;   // don't block on missing files
+      img.onerror = () => {
+        console.warn(`No se pudo cargar la imagen: ${src}. Usando respaldo visual geométrico.`);
+        finish();
+      };
       img.src = src;
     });
   });
@@ -243,10 +221,8 @@ function setLoadBar(pct) {
 
 
 /* ─────────────────────────────────────────────────────────────────
-   §6  WEB AUDIO ENGINE  — 100% synthesised, zero file fetches
+   §6  WEB AUDIO ENGINE
 ───────────────────────────────────────────────────────────────── */
-
-/** Boot (or resume) the AudioContext after a user gesture. */
 function ensureAudio() {
   if (!GS.audio.ctx) {
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -257,7 +233,6 @@ function ensureAudio() {
   return true;
 }
 
-/* ── 6A  MENU BGM: energetic pentatonic square-wave arpeggio ── */
 function startMenuBGM() {
   if (GS.audio.bgmActive) return;
   if (!ensureAudio()) return;
@@ -272,12 +247,9 @@ function stopMenuBGM() {
   GS.audio.bgmNodes = [];
 }
 
-// Pentatonic major scale (two octaves) for menu
 const MENU_FREQS = [
   261.63, 293.66, 329.63, 392.00, 440.00,
   523.25, 587.33, 659.25, 783.99, 880.00,
-  783.99, 659.25, 587.33, 523.25, 440.00,
-  392.00, 329.63, 293.66,
 ];
 
 function _scheduleMenuArpeggio() {
@@ -299,51 +271,28 @@ function _scheduleMenuArpeggio() {
     t += noteDur;
   });
 
-  // Loop: schedule next batch just before this one ends
   GS.audio.bgmTimer = setTimeout(
     _scheduleMenuArpeggio,
     (MENU_FREQS.length * noteDur - 0.05) * 1000
   );
 }
 
-/* ── 6B  IN-GAME BGM: Arabic-style maqam with rhythmic pulse ── */
-/*
- *  Uses Maqam Hijaz intervals (characteristic b2 + augmented 2nd):
- *  Root, b2, M3, P4, P5, b6, M7, octave
- *  Scale degrees relative to D (293.66 Hz root):
- *  D  Eb  F#  G  A  Bb  C#  D'
- */
-const MAQAM_HIJAZ = [
-  293.66,  // D4
-  311.13,  // Eb4
-  369.99,  // F#4
-  392.00,  // G4
-  440.00,  // A4
-  466.16,  // Bb4
-  554.37,  // C#5
-  587.33,  // D5
-];
-
-// A simple melodic motif using Hijaz scale indices
-const HIJAZ_MELODY = [0,2,3,2,1,0,4,3,2,3,0,5,4,3,2,1,0,6,5,4,3,2,1,0];
-// Rhythmic durations matching a 4/4 feel at roughly 120 BPM
-const HIJAZ_DURS   = [0.25,0.15,0.20,0.15,0.25,0.30,0.20,0.15,0.25,0.20,0.30,
-                      0.20,0.15,0.25,0.15,0.20,0.30,0.20,0.15,0.25,0.20,0.15,0.20,0.35];
+const MAQAM_HIJAZ = [293.66, 311.13, 369.99, 392.00, 440.00, 466.16, 554.37, 587.33];
+const HIJAZ_MELODY = [0,2,3,2,1,0,4,3,2,3,0,5,4,3,2,1];
+const HIJAZ_DURS   = [0.25,0.15,0.20,0.15,0.25,0.30,0.20,0.15,0.25,0.20,0.30,0.20,0.15,0.25,0.15,0.20];
 
 function startInGameMusic() {
   if (!ensureAudio()) return;
-  // Will be looped; proximity drives speed in _tickInGameMusic
-  _launchInGameLoop(1.0);   // tempo multiplier starts at 1×
+  _launchInGameLoop(1.0);
 }
 
 function _launchInGameLoop(tempoMult) {
   const ctx = GS.audio.ctx;
-  if (!ctx || !GS.game.running) return;
+  if (!ctx || !GS.game.running || GS.game.exploding) return;
 
   const nodes = [];
   let t = ctx.currentTime;
 
-  // Master gain for the whole phrase
   const masterGain = ctx.createGain();
   masterGain.gain.setValueAtTime(0.06, t);
   masterGain.connect(ctx.destination);
@@ -352,7 +301,6 @@ function _launchInGameLoop(tempoMult) {
     const freq = MAQAM_HIJAZ[scaleIdx];
     const dur  = (HIJAZ_DURS[i] || 0.2) / tempoMult;
 
-    // Melody: sawtooth for nasal oud-like timbre
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sawtooth';
@@ -363,48 +311,18 @@ function _launchInGameLoop(tempoMult) {
     osc.start(t); osc.stop(t + dur);
     nodes.push(osc, gain);
 
-    // Rhythmic low-end pulse every 4 notes (doumbek kick simulation)
-    if (i % 4 === 0) {
-      const kick = ctx.createOscillator();
-      const kGain = ctx.createGain();
-      kick.type = 'sine';
-      kick.frequency.setValueAtTime(180, t);
-      kick.frequency.exponentialRampToValueAtTime(60, t + 0.06);
-      kGain.gain.setValueAtTime(0.35, t);
-      kGain.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
-      kick.connect(kGain); kGain.connect(masterGain);
-      kick.start(t); kick.stop(t + 0.12);
-      nodes.push(kick, kGain);
-    }
-
-    // Off-beat click (req) on beats 2&4
-    if (i % 4 === 2) {
-      const click = ctx.createOscillator();
-      const cGain = ctx.createGain();
-      click.type = 'triangle';
-      click.frequency.setValueAtTime(600, t);
-      cGain.gain.setValueAtTime(0.12, t);
-      cGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-      click.connect(cGain); cGain.connect(masterGain);
-      click.start(t); click.stop(t + 0.06);
-      nodes.push(click, cGain);
-    }
-
     t += dur;
   });
 
   nodes.push(masterGain);
-
   const phraseDurMs = (t - ctx.currentTime) * 1000 - 50;
 
-  // Store reference so we can stop it
   GS.audio.inGameAudio = {
     nodes,
     timer: setTimeout(() => {
-      if (GS.game.running && !GS.game.paused) {
-        // Re-launch with updated tempo based on current proximity
+      if (GS.game.running && !GS.game.paused && !GS.game.exploding) {
         const prox = GS.game.proximity;
-        const newMult = 1.0 + prox * 1.6;  // up to 2.6× faster when vet is right there
+        const newMult = 1.0 + prox * 1.6;
         _launchInGameLoop(newMult);
       }
     }, phraseDurMs),
@@ -422,7 +340,6 @@ function stopInGameMusic() {
   }
 }
 
-/* ── 6C  SELECTION SFX ── */
 function playCatMeow() {
   if (!ensureAudio()) return;
   const ctx = GS.audio.ctx;
@@ -431,29 +348,42 @@ function playCatMeow() {
   osc.type = 'sine';
   osc.frequency.setValueAtTime(700, ctx.currentTime);
   osc.frequency.exponentialRampToValueAtTime(350, ctx.currentTime + 0.25);
-  osc.frequency.exponentialRampToValueAtTime(520, ctx.currentTime + 0.45);
   gain.gain.setValueAtTime(0.18, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.50);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
   osc.connect(gain); gain.connect(ctx.destination);
-  osc.start(); osc.stop(ctx.currentTime + 0.5);
+  osc.start(); osc.stop(ctx.currentTime + 0.4);
 }
 
 function playDogBark() {
   if (!ensureAudio()) return;
   const ctx = GS.audio.ctx;
-  // White-noise burst shaped into a bark
-  const bufLen = Math.floor(ctx.sampleRate * 0.18);
+  const bufLen = Math.floor(ctx.sampleRate * 0.15);
   const buf    = ctx.createBuffer(1, bufLen, ctx.sampleRate);
   const data   = buf.getChannelData(0);
-  for (let i = 0; i < bufLen; i++)
-    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 2.5);
+  for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 2);
   const src  = ctx.createBufferSource();
-  const bpf  = ctx.createBiquadFilter();
   const gain = ctx.createGain();
   src.buffer = buf;
-  bpf.type = 'bandpass'; bpf.frequency.value = 850; bpf.Q.value = 0.7;
-  gain.gain.setValueAtTime(0.5, ctx.currentTime);
-  src.connect(bpf); bpf.connect(gain); gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(0.4, ctx.currentTime);
+  src.connect(gain); gain.connect(ctx.destination);
+  src.start();
+}
+
+function playExplosionSFX() {
+  if (!ensureAudio()) return;
+  const ctx = GS.audio.ctx;
+  const bufLen = Math.floor(ctx.sampleRate * 0.6);
+  const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 1.5);
+  const src = ctx.createBufferSource();
+  const lowpass = ctx.createBiquadFilter();
+  const gain = ctx.createGain();
+  src.buffer = buf;
+  lowpass.type = 'lowpass'; lowpass.frequency.setValueAtTime(300, ctx.currentTime);
+  gain.gain.setValueAtTime(0.7, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+  src.connect(lowpass); lowpass.connect(gain); gain.connect(ctx.destination);
   src.start();
 }
 
@@ -462,44 +392,6 @@ function playSelectionSFX(soundType) {
   else                      playCatMeow();
 }
 
-/* ── 6D  WIN / LOSE jingles ── */
-function playWinJingle() {
-  if (!ensureAudio()) return;
-  const ctx = GS.audio.ctx;
-  const notes = [523.25, 659.25, 783.99, 1046.5];
-  let t = ctx.currentTime;
-  notes.forEach(freq => {
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(freq, t);
-    gain.gain.setValueAtTime(0.10, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(t); osc.stop(t + 0.3);
-    t += 0.22;
-  });
-}
-
-function playLoseJingle() {
-  if (!ensureAudio()) return;
-  const ctx = GS.audio.ctx;
-  const notes = [440, 392, 349.23, 261.63];
-  let t = ctx.currentTime;
-  notes.forEach(freq => {
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(freq, t);
-    gain.gain.setValueAtTime(0.12, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(t); osc.stop(t + 0.38);
-    t += 0.30;
-  });
-}
-
-/* ── 6E  Utility ── */
 function _killNodes(arr) {
   arr.forEach(n => { try { n.stop(); } catch(_) {} try { n.disconnect(); } catch(_) {} });
   arr.length = 0;
@@ -542,34 +434,40 @@ function bindCharCards() {
   document.querySelectorAll('.quad[data-char]').forEach(card => {
     const id = card.dataset.char;
     card.addEventListener('click',   () => { ensureAudio(); selectCharacter(id); });
-    card.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ensureAudio(); selectCharacter(id); }
-    });
   });
 }
 
 
 /* ─────────────────────────────────────────────────────────────────
-   §9  GAMEPLAY ENGINE  — 2-D canvas chase scene
-   Renders a top-down level using the HTML5 Canvas 2D API.
-   Player controlled with WASD/Arrow keys.
-   Vet patrols then chases using a simplified vision-cone check.
-   Hiding spots grant invisibility while the player stays inside.
-   Reaching the goal triggers WIN; Vet catching player triggers LOSE.
+   §9  GAMEPLAY ENGINE & PARTICLE SYSTEM
 ───────────────────────────────────────────────────────────────── */
-
 let gameCanvas, gameCtx;
+
+function createExplosion(x, y, color) {
+  for (let i = 0; i < 40; i++) {
+    GS.particles.push({
+      x: x, y: y,
+      vx: (Math.random() * 2 - 1) * 0.01,
+      vy: (Math.random() * 2 - 1) * 0.01,
+      radius: Math.random() * 6 + 4,
+      color: color,
+      alpha: 1,
+      decay: Math.random() * 0.02 + 0.01
+    });
+  }
+}
 
 function launchGame() {
   const c = GS.char;
   if (!c) { changeScreen('charselect'); return; }
 
-  // Reset gameplay state
   const g = GS.game;
   g.running   = true;
   g.paused    = false;
   g.won       = false;
   g.lost      = false;
+  g.exploding = false;
+  g.explodingTimer = 0;
   g.px        = c.playerStart.x;
   g.py        = c.playerStart.y;
   g.vx        = c.vetStart.x;
@@ -582,9 +480,11 @@ function launchGame() {
   g.hidden    = false;
   g.hiddenSpot = null;
   g.proximity = 0;
+  g.timeLeft  = 20.0; // 20 segundos asignados
+  g.lastTime  = performance.now();
   g.keys      = {};
+  GS.particles = [];
 
-  // Set up canvas
   const wrap = $('gameCanvasWrap');
   wrap.innerHTML = '';
   gameCanvas = document.createElement('canvas');
@@ -595,17 +495,12 @@ function launchGame() {
 
   gameCtx = gameCanvas.getContext('2d');
 
-  // Input
   window.addEventListener('keydown',  onKeyDown);
   window.addEventListener('keyup',    onKeyUp);
 
-  // HUD
   initHUD();
-
-  // Start music
   startInGameMusic();
 
-  // Run loop
   if (g.rafId) cancelAnimationFrame(g.rafId);
   g.rafId = requestAnimationFrame(gameLoop);
 }
@@ -615,7 +510,7 @@ function resizeCanvas() {
   gameCanvas.width  = gameCanvas.offsetWidth  || window.innerWidth;
   gameCanvas.height = gameCanvas.offsetHeight || window.innerHeight;
 }
-window.addEventListener('resize', () => { resizeCanvas(); });
+window.addEventListener('resize', resizeCanvas);
 
 function stopGame() {
   const g = GS.game;
@@ -631,8 +526,6 @@ function onKeyDown(e) {
 }
 function onKeyUp(e)   { GS.game.keys[e.key.toLowerCase()] = false; }
 
-
-/* ── 9A  MAIN GAME LOOP ── */
 function gameLoop() {
   const g = GS.game;
   if (!g.running) return;
@@ -644,27 +537,53 @@ function gameLoop() {
 }
 
 
-/* ── 9B  UPDATE ── */
+/* ── 9B  UPDATE GAMEPLAY ── */
 function updateGame() {
   const g  = GS.game;
   const c  = GS.char;
-  const W  = gameCanvas.width;
-  const H  = gameCanvas.height;
+  const now = performance.now();
+  const dt = (now - g.lastTime) / 1000;
+  g.lastTime = now;
 
-  // — Player movement —
+  // Si está en proceso de explosión, actualizar partículas e ir a la pantalla de fin
+  if (g.exploding) {
+    g.explodingTimer += dt;
+    GS.particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.alpha -= p.decay;
+    });
+    GS.particles = GS.particles.filter(p => p.alpha > 0);
+
+    if (g.explodingTimer >= 2.0) { // Duración de la animación antes de la redirección
+      stopGame();
+      changeScreen(g.won ? 'win' : 'lose');
+    }
+    return;
+  }
+
+  // Reducir minutero / temporizador
+  g.timeLeft -= dt;
+  if (g.timeLeft <= 0) {
+    g.timeLeft = 0;
+    triggerExplosionLose(); // Perder por tiempo agota la ronda y explota
+    return;
+  }
+
+  // Movimiento Jugador
   const spd = g.pSpeed;
   let dx = 0, dy = 0;
   if (g.keys['w'] || g.keys['arrowup'])    dy -= spd;
   if (g.keys['s'] || g.keys['arrowdown'])  dy += spd;
   if (g.keys['a'] || g.keys['arrowleft'])  dx -= spd;
   if (g.keys['d'] || g.keys['arrowright']) dx += spd;
-  if (dx && dy) { dx *= 0.707; dy *= 0.707; }  // diagonal normalise
-  if (g.keys['shift']) { dx *= 1.65; dy *= 1.65; }
+  if (dx && dy) { dx *= 0.707; dy *= 0.707; }
+  if (g.keys['shift']) { dx *= 1.5; dy *= 1.5; }
 
   g.px = Math.max(0.01, Math.min(0.99, g.px + dx));
   g.py = Math.max(0.01, Math.min(0.99, g.py + dy));
 
-  // — Hiding spot check —
+  // Hiding spots
   g.hidden = false;
   g.hiddenSpot = null;
   for (const spot of c.hidingSpots) {
@@ -676,21 +595,19 @@ function updateGame() {
     }
   }
 
-  // — Goal check (WIN) —
+  // Meta alcanzada (Victoria)
   const goal = c.goalPos;
   const distToGoal = Math.hypot(g.px - goal.x, g.py - goal.y);
   if (distToGoal < 0.055) {
-    stopGame();
-    playWinJingle();
-    setTimeout(() => changeScreen('win'), 400);
+    g.exploding = true;
+    g.won = true;
+    createExplosion(g.px, g.py, '#fff500');
     return;
   }
 
-  // — Vet proximity —
+  // Inteligencia de la veterinaria
   const rawDist = Math.hypot(g.px - g.vx, g.py - g.vy);
   g.proximity   = Math.max(0, 1 - rawDist / VET.visionRange);
-
-  // — Vet AI —
   const canSee = !g.hidden && rawDist < VET.visionRange && _inCone(g);
 
   if (canSee) {
@@ -702,13 +619,11 @@ function updateGame() {
   }
 
   if (g.vetMode === 'chase') {
-    // Chase: move toward player
     const ang = Math.atan2(g.py - g.vy, g.px - g.vx);
     g.vx += Math.cos(ang) * VET.chaseSpeed;
     g.vy += Math.sin(ang) * VET.chaseSpeed;
     g.vAngle = ang * 180 / Math.PI;
   } else {
-    // Patrol: wander between random points
     g.patrolTimer--;
     if (!g.patrolTarget || g.patrolTimer <= 0) {
       g.patrolTarget = { x: 0.1 + Math.random() * 0.8, y: 0.1 + Math.random() * 0.8 };
@@ -723,19 +638,25 @@ function updateGame() {
   g.vx = Math.max(0.01, Math.min(0.99, g.vx));
   g.vy = Math.max(0.01, Math.min(0.99, g.vy));
 
-  // — Catch check (LOSE) —
+  // Veterinaria atrapa a la mascota (Derrota)
   if (rawDist < 0.045 && !g.hidden) {
-    stopGame();
-    playLoseJingle();
-    setTimeout(() => changeScreen('lose'), 400);
+    triggerExplosionLose();
     return;
   }
 
-  // — Update HUD —
   updateHUD();
 }
 
-/** True if player is within the Vet's vision cone */
+function triggerExplosionLose() {
+  const g = GS.game;
+  stopInGameMusic();
+  playExplosionSFX();
+  g.exploding = true;
+  g.lost = true;
+  createExplosion(g.px, g.py, GS.char.color); // Explota la mascota
+  createExplosion(g.vx, g.vy, '#ff2d78');     // Explota la Veterinaria
+}
+
 function _inCone(g) {
   const toPlayerAngle = Math.atan2(g.py - g.vy, g.px - g.vx) * 180 / Math.PI;
   let diff = toPlayerAngle - g.vAngle;
@@ -745,7 +666,7 @@ function _inCone(g) {
 }
 
 
-/* ── 9C  RENDER ── */
+/* ── 9C  RENDERIZADO EN CANVAS (Escenarios Temáticos Incluidos) ── */
 function renderGame() {
   const g = GS.game;
   const c = GS.char;
@@ -753,7 +674,7 @@ function renderGame() {
   const H = gameCanvas.height;
   const ctx = gameCtx;
 
-  // — Background —
+  // Dibujar el Escenario Base según la locación elegida
   const grad = ctx.createLinearGradient(0, 0, W, H);
   grad.addColorStop(0,   c.bgColors[0]);
   grad.addColorStop(0.5, c.bgColors[1]);
@@ -761,126 +682,145 @@ function renderGame() {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle grid lines (low-poly feel)
-  ctx.strokeStyle = `rgba(${c.colorRGB},0.06)`;
-  ctx.lineWidth = 1;
-  const grid = 60;
-  for (let x = 0; x < W; x += grid) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-  for (let y = 0; y < H; y += grid) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  // Elementos Decorativos Temáticos en el Canvas para simular el escenario original
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  if (c.id === 'agata') { // Bosque: Dibujar pinos abstractos geométricos de fondo
+    ctx.fillStyle = 'rgba(0, 232, 106, 0.04)';
+    for(let i=1; i<=5; i++) {
+      ctx.beginPath(); ctx.moveTo(W*(i*0.15), H*0.3); ctx.lineTo(W*(i*0.15+0.05), H*0.5); ctx.lineTo(W*(i*0.15-0.05), H*0.5); ctx.fill();
+    }
+  } else if (c.id === 'martin') { // Desierto: Líneas horizontales simulando dunas y calor
+    ctx.strokeStyle = 'rgba(255, 144, 32, 0.05)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(0, H*0.4); ctx.quadraticCurveTo(W*0.4, H*0.3, W, H*0.5); ctx.stroke();
+  } else if (c.id === 'michi') { // Baño: Dibujar un patrón de azulejos cuadriculado brillante
+    ctx.strokeStyle = 'rgba(0, 184, 255, 0.08)'; ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  }
 
-  // — Hiding spots —
+  // Dibujar Escondites
   c.hidingSpots.forEach(spot => {
     const sx = spot.x * W, sy = spot.y * H;
     const sw = spot.w * W, sh = spot.h * H;
-    ctx.fillStyle   = g.hiddenSpot === spot
-      ? `rgba(${c.colorRGB},0.35)`
-      : `rgba(${c.colorRGB},0.12)`;
+    ctx.fillStyle   = g.hiddenSpot === spot ? `rgba(${c.colorRGB},0.35)` : `rgba(${c.colorRGB},0.12)`;
     ctx.strokeStyle = `rgba(${c.colorRGB},0.7)`;
     ctx.lineWidth   = 2;
     ctx.fillRect(sx, sy, sw, sh);
     ctx.strokeRect(sx, sy, sw, sh);
-    // Label
+
+    // Dibujar figura original simplificada si no carga la imagen
     ctx.fillStyle   = `rgba(${c.colorRGB},0.9)`;
-    ctx.font        = `bold ${Math.max(8, W * 0.012)}px monospace`;
+    ctx.font        = `bold ${Math.max(10, W * 0.012)}px monospace`;
     ctx.textAlign   = 'center';
     ctx.fillText(spot.label, sx + sw / 2, sy + sh / 2 + 4);
   });
 
-  // — Goal —
-  const gx = c.goalPos.x * W;
-  const gy = c.goalPos.y * H;
-  const gr = W * 0.038;
+  // Dibujar Meta (Premio/Reward)
+  const gx = c.goalPos.x * W, gy = c.goalPos.y * H, gr = W * 0.038;
   ctx.save();
   ctx.shadowColor = c.color; ctx.shadowBlur = 18;
   ctx.strokeStyle = c.color; ctx.lineWidth  = 3;
   ctx.beginPath(); ctx.arc(gx, gy, gr, 0, Math.PI * 2); ctx.stroke();
   ctx.restore();
-  // Pulsing fill
+  
   const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 350);
   ctx.fillStyle = `rgba(${c.colorRGB},${0.15 + 0.2 * pulse})`;
   ctx.beginPath(); ctx.arc(gx, gy, gr, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle   = c.color;
-  ctx.font        = `bold ${Math.max(9, W * 0.013)}px monospace`;
+  ctx.font        = `bold ${Math.max(9, W * 0.011)}px monospace`;
   ctx.textAlign   = 'center';
-  ctx.fillText(c.goalLabel, gx, gy + 4);
+  ctx.fillText(c.goalLabel, gx, gy - 8);
+  ctx.font        = `normal ${Math.max(11, W * 0.013)}px sans-serif`;
+  ctx.fillText(c.reward, gx, gy + 12); // Muestra el premio aquí físicamente
 
-  // — Vet vision cone —
-  if (!g.hidden || g.vetMode === 'chase') {
+  // Cono de Visión de la Veterinaria
+  if (!g.hidden && !g.exploding) {
     const vxPx = g.vx * W, vyPx = g.vy * H;
     const coneRange = VET.visionRange * W;
     const halfAngle = VET.visionAngle * Math.PI / 180;
     const baseAngle = g.vAngle * Math.PI / 180;
     ctx.save();
-    const alpha = g.vetMode === 'chase' ? 0.22 : 0.10;
-    ctx.fillStyle = `rgba(255,45,120,${alpha})`;
-    ctx.beginPath();
-    ctx.moveTo(vxPx, vyPx);
+    ctx.fillStyle = g.vetMode === 'chase' ? 'rgba(255,45,120,0.25)' : 'rgba(255,45,120,0.09)';
+    ctx.beginPath(); ctx.moveTo(vxPx, vyPx);
     ctx.arc(vxPx, vyPx, coneRange, baseAngle - halfAngle, baseAngle + halfAngle);
     ctx.closePath(); ctx.fill();
     ctx.restore();
   }
 
-  // — Draw Vet sprite or fallback shape —
-  _drawSprite(ctx, 'vet', g.vx * W, g.vy * H, W * 0.095, H * 0.14);
-
-  // — Player sprite or fallback shape —
-  if (!g.hidden) {
-    _drawSprite(ctx, c.id, g.px * W, g.py * H, W * 0.080, H * 0.12);
-  } else {
-    // Show faint silhouette while hiding
-    ctx.save();
-    ctx.globalAlpha = 0.22;
-    _drawSprite(ctx, c.id, g.px * W, g.py * H, W * 0.080, H * 0.12);
-    ctx.restore();
-    // HIDING indicator
-    ctx.fillStyle = c.color;
-    ctx.font      = `bold ${Math.max(10, W * 0.016)}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText('👁 HIDING', g.px * W, g.py * H - H * 0.07);
+  // Renderizar Personajes (Mascota / Veterinaria) si no hay explosión
+  if (!g.exploding) {
+    _drawSprite(ctx, 'vet', g.vx * W, g.vy * H, W * 0.095, H * 0.14);
+    if (!g.hidden) {
+      _drawSprite(ctx, c.id, g.px * W, g.py * H, W * 0.080, H * 0.12);
+    } else {
+      ctx.save(); ctx.globalAlpha = 0.25;
+      _drawSprite(ctx, c.id, g.px * W, g.py * H, W * 0.080, H * 0.12);
+      ctx.restore();
+      ctx.fillStyle = c.color; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center';
+      ctx.fillText('👁 HIDING', g.px * W, g.py * H - 40);
+    }
   }
 
-  // — Chase warning overlay —
-  if (g.vetMode === 'chase') {
+  // Dibujar Partículas de la Explosión
+  GS.particles.forEach(p => {
     ctx.save();
-    const flash = Math.sin(Date.now() / 120) > 0;
-    if (flash) {
-      ctx.fillStyle = 'rgba(255,45,120,0.07)';
-      ctx.fillRect(0, 0, W, H);
-    }
-    ctx.fillStyle = 'rgba(255,45,120,0.9)';
-    ctx.font      = `bold ${Math.max(12, W * 0.022)}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText('⚠ SHE SEES YOU! ⚠', W / 2, H * 0.06);
+    ctx.globalAlpha = p.alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x * W, p.y * H, p.radius, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
+  });
+
+  // Alertas en pantalla
+  if (g.vetMode === 'chase' && !g.exploding) {
+    ctx.fillStyle = 'rgba(255,45,120,0.85)'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('⚠ SHE SEES YOU! ⚠', W / 2, H * 0.07);
   }
 }
 
 /**
- * Draw a preloaded billboard sprite centred at (cx, cy),
- * falling back to a coloured circle if the image isn't ready.
+ * Función encargada de pintar los rostros reales/originales de tus imágenes en PNG.
+ * Si por algún motivo la URL falla en el servidor, autogenera una carita con ojos y boca
+ * para que nunca más aparezcan íconos rotos sin gracia.
  */
 function _drawSprite(ctx, key, cx, cy, w, h) {
   const img = GS.images[key];
   if (img && img.complete && img.naturalWidth > 0) {
+    // Si la imagen cargó desde la carpeta images/, se plasma con sus caras en la pantalla
     ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
   } else {
-    // Fallback: filled circle with initial
+    // Fallback Inteligente: ¡Dibuja figuras con sus rostros pixel-art para que no se vea vacío!
+    const radius = Math.min(w, h) / 2;
     ctx.beginPath();
-    ctx.arc(cx, cy, Math.min(w, h) / 2, 0, Math.PI * 2);
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fillStyle = key === 'vet' ? '#ff2d78' : (GS.char?.color || '#00f5ff');
     ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.font      = `bold ${Math.min(w, h) * 0.55}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(key === 'vet' ? 'V' : (GS.char?.name[0] || '?'), cx, cy);
-    ctx.textBaseline = 'alphabetic';
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+    // Dibujar ojos y caritas interactivas para simular los personajes originales
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(cx - radius*0.3, cy - radius*0.1, radius*0.12, 0, Math.PI*2); // Ojo izquierdo
+    ctx.arc(cx + radius*0.3, cy - radius*0.1, radius*0.12, 0, Math.PI*2); // Ojo derecho
+    ctx.fill();
+
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.beginPath();
+    if (key === 'vet') {
+      ctx.arc(cx, cy + radius*0.3, radius*0.25, 0, Math.PI, true); // Boca seria/enojada de veterinaria
+    } else {
+      ctx.arc(cx, cy + radius*0.1, radius*0.3, 0, Math.PI, false); // Boca sonriente de mascota
+    }
+    ctx.stroke();
+
+    // Inicial de Texto arriba
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(key === 'vet' ? 'VET' : key.toUpperCase(), cx, cy - radius - 6);
   }
 }
 
 
 /* ─────────────────────────────────────────────────────────────────
-   §10  HUD
+   §10  HUD & MINUTERO
 ───────────────────────────────────────────────────────────────── */
 function initHUD() {
   const c = GS.char;
@@ -892,16 +832,18 @@ function initHUD() {
 
 function updateHUD() {
   const g = GS.game;
+  // Actualizar Minutero visual en la barra superior de estatus
+  const elStatus = $('hudStatus');
+  if (elStatus) {
+    let statusText = g.hidden ? '🙈 HIDING!' : (g.vetMode === 'chase' ? '⚠ CHASED!' : 'EVADING...');
+    elStatus.textContent = `⏱️ TIME: ${g.timeLeft.toFixed(1)}s | ${statusText}`;
+  }
+
   const fill = $('hudProxFill');
   if (fill) {
     const pct = Math.min(1, g.proximity) * 100;
-    fill.style.width    = pct + '%';
-    fill.style.boxShadow = pct > 70 ? '0 0 10px #ff2d78' : 'none';
+    fill.style.width = pct + '%';
   }
-  // Status text
-  if (g.hidden)              updateHUDStatus('🙈 HIDING!');
-  else if (g.vetMode === 'chase') updateHUDStatus('⚠ SHE SEES YOU!');
-  else                       updateHUDStatus('EVADING...');
 }
 
 function updateHUDStatus(txt) {
@@ -914,66 +856,60 @@ function togglePause() {
   g.paused = !g.paused;
   const btn = $('btnPause');
   if (btn) btn.textContent = g.paused ? '▶ RESUME' : '⏸ PAUSE';
-  updateHUDStatus(g.paused ? '⏸ PAUSED' : 'EVADING...');
-  if (!g.paused) startInGameMusic();
+  if (!g.paused) { g.lastTime = performance.now(); startInGameMusic(); }
   else stopInGameMusic();
 }
 
 
 /* ─────────────────────────────────────────────────────────────────
-   §11  WIN / LOSE RESULT SCREENS
-   Dynamically builds an overlay inside screen-game
-   so we don't need extra HTML screens.
+   §11  WIN / GAME OVER RESULT SCREENS (Redirección automática incorporada)
 ───────────────────────────────────────────────────────────────── */
 function showResult(won) {
   const c   = GS.char;
   const wrap = $('gameCanvasWrap');
-
-  if (won) playWinJingle();
-  else     playLoseJingle();
 
   const overlay = document.createElement('div');
   overlay.id = 'resultOverlay';
   overlay.style.cssText = `
     position:absolute;inset:0;display:flex;flex-direction:column;
     align-items:center;justify-content:center;
-    background:rgba(4,6,14,0.88);z-index:500;
+    background:rgba(10,5,5,0.92);z-index:500;
     font-family:'Press Start 2P',monospace;text-align:center;padding:2rem;
   `;
 
-  const accentColor = won ? (c?.color || '#00f5ff') : '#ff2d78';
-  const emoji       = won ? '🎉' : '😿';
-  const headline    = won ? 'YOU ESCAPED!' : 'CAUGHT!';
-  const sub         = won
-    ? `${c?.name || 'YOUR PET'} earned ${c?.reward || '🏆 REWARD'}!`
-    : `THE VET GOT ${c?.name || 'YOUR PET'}!`;
-
-  overlay.innerHTML = `
-    <div style="font-size:clamp(2rem,6vw,4rem);margin-bottom:1rem">${emoji}</div>
-    <div style="font-size:clamp(1rem,3vw,2rem);color:${accentColor};
-         text-shadow:0 0 12px ${accentColor},3px 3px 0 rgba(0,0,0,0.8);
-         margin-bottom:0.8rem;letter-spacing:0.12em">${headline}</div>
-    <div style="font-size:clamp(0.45rem,1.4vw,0.8rem);color:#e0e0cc;
-         margin-bottom:2rem;line-height:2">${sub}</div>
-    <div style="display:flex;gap:1.2rem;flex-wrap:wrap;justify-content:center;">
-      <button id="btnRetry"  style="${_btnStyle(accentColor)}">↩ RETRY</button>
-      <button id="btnToMenu" style="${_btnStyle('#6a7a9a')}">⌂ MAIN MENU</button>
-    </div>
-  `;
+  if (won) {
+    // Victoria: Reclama el premio estipulado
+    overlay.innerHTML = `
+      <div style="font-size:3.5rem;margin-bottom:1rem">🎉</div>
+      <div style="font-size:2rem;color:${c.color};margin-bottom:1rem;">¡ESCAPASTE!</div>
+      <div style="font-size:0.8rem;color:#fff;margin-bottom:2rem;line-height:2">
+        ${c.name} ganó su recompensa:<br><span style="font-size:1.5rem">${c.reward} (${c.rewardLabel})</span>
+      </div>
+      <button id="btnToMenu" style="${_btnStyle(c.color)}">VOLVER A JUGAR</button>
+    `;
+  } else {
+    // Derrota: Requerimiento de explosión + Letrero clásico GAME OVER
+    overlay.innerHTML = `
+      <div style="font-size:4rem;color:#ff2d78;text-shadow:0 0 15px #ff2d78;margin-bottom:1.5rem;letter-spacing:0.1em;">GAME OVER</div>
+      <div style="font-size:0.7rem;color:#ccc;margin-bottom:2.5rem;line-height:1.8;">LA VETERINARIA ATROPÓ A ${c.name}</div>
+      <button id="btnToMenu" style="${_btnStyle('#ff2d78')}">INTENTAR DE NUEVO</button>
+    `;
+  }
 
   $('screen-game').appendChild(overlay);
 
-  $('btnRetry') ?.addEventListener('click', () => {
-    overlay.remove(); stopInGameMusic(); ensureAudio(); launchGame();
-  });
-  $('btnToMenu')?.addEventListener('click', () => {
-    overlay.remove(); stopInGameMusic(); stopMenuBGM(); changeScreen('mainmenu');
+  // Redirecciona al menú principal de inmediato al dar clic para reiniciar el ciclo del juego limpio
+  $('btnToMenu').addEventListener('click', () => {
+    overlay.remove();
+    stopInGameMusic();
+    stopMenuBGM();
+    changeScreen('mainmenu');
   });
 }
 
 function _btnStyle(color) {
-  return `font-family:'Press Start 2P',monospace;font-size:clamp(0.45rem,1.3vw,0.65rem);
-    cursor:pointer;padding:0.8em 1.8em;border:3px solid ${color};background:transparent;
+  return `font-family:'Press Start 2P',monospace;font-size:0.7rem;
+    cursor:pointer;padding:1em 2em;border:3px solid ${color};background:transparent;
     color:${color};letter-spacing:0.1em;transition:transform 0.1s;text-transform:uppercase;`;
 }
 
@@ -982,45 +918,24 @@ function _btnStyle(color) {
    §12  BUTTON BINDINGS
 ───────────────────────────────────────────────────────────────── */
 function bindButtons() {
-  // Main menu
   $('btnStartGame')?.addEventListener('click', () => { ensureAudio(); changeScreen('charselect'); });
   $('btnHowTo')    ?.addEventListener('click', () => { ensureAudio(); changeScreen('howtoplay'); });
-
-  // How to play
   $('btnHowToBack')?.addEventListener('click', () => changeScreen('mainmenu'));
-
-  // Char select back
   $('btnCSBack')   ?.addEventListener('click', () => { startMenuBGM(); changeScreen('mainmenu'); });
-
-  // Confirm
   $('btnConfirmYes')?.addEventListener('click', () => { ensureAudio(); changeScreen('game'); });
-  $('btnConfirmNo') ?.addEventListener('click', () => {
-    GS.char = null;
-    startMenuBGM();
-    changeScreen('charselect');
-  });
-
-  // HUD pause
-  $('btnPause')?.addEventListener('click', () => togglePause());
+  $('btnConfirmNo') ?.addEventListener('click', () => { GS.char = null; startMenuBGM(); changeScreen('charselect'); });
+  $('btnPause')    ?.addEventListener('click', () => togglePause());
 }
 
 
 /* ─────────────────────────────────────────────────────────────────
-   §13  KEYBOARD SHORTCUTS (global)
+   §13  KEYBOARD SHORTCUTS
 ───────────────────────────────────────────────────────────────── */
 document.addEventListener('keydown', e => {
-  if (GS.screen === 'mainmenu' && e.key === 'Enter') {
-    ensureAudio(); changeScreen('charselect'); return;
-  }
+  if (GS.screen === 'mainmenu' && e.key === 'Enter') { ensureAudio(); changeScreen('charselect'); }
   if (e.key === 'Escape') {
-    switch (GS.screen) {
-      case 'howtoplay':  changeScreen('mainmenu');   break;
-      case 'charselect': changeScreen('mainmenu');   break;
-      case 'confirm':
-        GS.char = null; startMenuBGM(); changeScreen('charselect');
-        break;
-      // game ESC is handled in onKeyDown (registered per-game)
-    }
+    if (GS.screen === 'howtoplay' || GS.screen === 'charselect') changeScreen('mainmenu');
+    if (GS.screen === 'confirm') { GS.char = null; startMenuBGM(); changeScreen('charselect'); }
   }
 });
 
@@ -1029,16 +944,12 @@ document.addEventListener('keydown', e => {
    §14  INIT
 ───────────────────────────────────────────────────────────────── */
 async function init() {
-  console.log('🐾 Furry Escapades — booting…');
-
+  console.log('🐾 Furry Escapades — Inicializando nueva versión...');
   bindButtons();
   bindCharCards();
-
   setLoadBar(0);
   await preloadImages();
-  await new Promise(r => setTimeout(r, 400));
-
-  console.log('✅ Assets ready. Images loaded:', Object.keys(GS.images).join(', '));
+  await new Promise(r => setTimeout(r, 300));
   changeScreen('mainmenu');
 }
 

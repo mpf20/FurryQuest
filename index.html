@@ -2,10 +2,60 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Furry Escapades: Outsmart the Vet</title>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Estilos rápidos para el Joystick táctil */
+    #joystick-zone {
+      position: absolute;
+      bottom: 40px;
+      left: 40px;
+      width: 120px;
+      height: 120px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      display: none; /* Se activa dinámicamente en móviles */
+      touch-action: none;
+      z-index: 999;
+    }
+    #joystick-stick {
+      position: absolute;
+      top: 35px;
+      left: 35px;
+      width: 50px;
+      height: 50px;
+      background: #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+    /* Botón de acción rápido para móviles (Esconderse / Sprint) */
+    #mobile-action-btn {
+      position: absolute;
+      bottom: 50px;
+      right: 40px;
+      width: 80px;
+      height: 80px;
+      background: #ffe600;
+      border: 4px solid #000;
+      color: #000;
+      border-radius: 50%;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px;
+      font-weight: bold;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      touch-action: none;
+    }
+    #mobile-action-btn:active {
+      transform: scale(0.9);
+      background: #ff9020;
+    }
+  </style>
 </head>
 <body>
 
@@ -50,9 +100,9 @@
     <div class="howto-panel">
       <h2 class="panel-title yellow">HOW TO PLAY</h2>
       <div class="controls-grid">
-        <div class="ctrl"><span class="key">W A S D</span><span class="kdesc">Move</span></div>
-        <div class="ctrl"><span class="key">E</span><span class="kdesc">Hide / Interact</span></div>
-        <div class="ctrl"><span class="key">SHIFT</span><span class="kdesc">Sprint</span></div>
+        <div class="ctrl"><span class="key">W A S D</span><span class="kdesc">Move (PC) / Joystick (Mobile)</span></div>
+        <div class="ctrl"><span class="key">E / BTN</span><span class="kdesc">Hide inside spots</span></div>
+        <div class="ctrl"><span class="key">SHIFT</span><span class="kdesc">Auto-Sprint</span></div>
         <div class="ctrl"><span class="key">ESC</span><span class="kdesc">Pause</span></div>
       </div>
       <div class="tips">
@@ -159,6 +209,12 @@
     <div id="gameCanvasWrap">
       <canvas id="gameCanvas"></canvas>
     </div>
+
+    <div id="joystick-zone">
+      <div id="joystick-stick"></div>
+    </div>
+    <button id="mobile-action-btn">HIDE</button>
+
     <div id="hud">
       <div class="hud-left"><span class="hud-charname" id="hudCharName">—</span></div>
       <div class="hud-center">

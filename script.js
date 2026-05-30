@@ -50,7 +50,7 @@ const GS = {
   proximity: 0
 };
 
-// Rutas exactas a tus archivos en minúsculas
+// Mapeo corregido a la estructura real de carpetas en tu GitHub
 const IMAGE_ASSETS = {
   molly: 'assets/images/Molly.png',
   agata: 'assets/images/Agata.png',
@@ -85,7 +85,7 @@ async function preloadImages() {
         resolve();
       };
       img.onerror = () => {
-        // Si falla en Vercel, sigue adelante igual para no congelar la pantalla
+        // Si hay error en el servidor, sumamos igualmente para evitar que se quede en 0%
         loadedCount++;
         setLoadBar((loadedCount / total) * 100);
         resolve();
@@ -93,13 +93,13 @@ async function preloadImages() {
     });
   });
 
-  // Si tarda más de 2.5 segundos, salta al menú automáticamente
+  // Forzar desbloqueo total tras 2.5 segundos máximo por si la red de Vercel va lenta
   const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2500));
   await Promise.race([Promise.all(promises), timeoutPromise]);
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   §3  AUDIO SYNTHESIS ENGINE
+   §3  AUDIO SYNTHESIS ENGINE (Restaurado e Inmune)
 ───────────────────────────────────────────────────────────────── */
 function ensureAudio() {
   try {
@@ -110,7 +110,7 @@ function ensureAudio() {
       GS.audioCtx.resume();
     }
   } catch (e) {
-    console.log("Audio bloqueado temporalmente.");
+    console.log("AudioContext bloqueado por el navegador hasta interacción.");
   }
 }
 
@@ -124,13 +124,17 @@ function stopBGM() {
 function startMenuBGM() {
   ensureAudio();
   stopBGM();
+  
   if (!GS.audioCtx) return;
   const ctx = GS.audioCtx;
+  
   try {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
+    
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(110, ctx.currentTime);
+    
     const now = ctx.currentTime;
     for (let i = 0; i < 60; i++) {
       const t = now + i * 0.4;
@@ -138,6 +142,7 @@ function startMenuBGM() {
       osc.frequency.setValueAtTime(164.81, t + 0.1);
       osc.frequency.setValueAtTime(196.00, t + 0.2);
     }
+
     gain.gain.setValueAtTime(0.1, ctx.currentTime);
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -150,9 +155,11 @@ function playSynthSFX(type) {
   ensureAudio();
   if (!GS.audioCtx) return;
   const ctx = GS.audioCtx;
+
   try {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
+    
     if (type === 'bark') {
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(180, ctx.currentTime);
@@ -164,6 +171,7 @@ function playSynthSFX(type) {
       osc.frequency.exponentialRampToValueAtTime(700, ctx.currentTime + 0.2);
       gain.gain.setValueAtTime(0.12, ctx.currentTime);
     }
+    
     gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.2);
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -179,6 +187,7 @@ function changeScreen(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById(`screen-${screenId}`);
   if (target) target.classList.add('active');
+  
   GS.screen = screenId;
 
   if (screenId === 'mainmenu') {
@@ -264,6 +273,7 @@ function onKeyUp(e) {
   GS.keys[e.key.toLowerCase()] = false;
 }
 
+// Permitir activar el contexto de audio con cualquier click inicial en la página
 window.addEventListener('click', ensureAudio);
 
 function togglePause() {

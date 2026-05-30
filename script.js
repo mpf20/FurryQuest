@@ -1,24 +1,11 @@
-/**
- * Furry Escapades: Outsmart the Vet
- * Código fuente corregido (Problema de pantalla de carga solucionado)
- */
-
-const canvas = document.getElementById('gameCanvas') || document.createElement('canvas');
-if (!canvas.id) {
-    canvas.id = 'gameCanvas';
-    canvas.width = 800;
-    canvas.height = 500;
-    document.body.appendChild(canvas);
-}
+const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// --- ESTADO GLOBAL DEL JUEGO ---
+// --- ESTADO GLOBAL ---
 const gameState = {
-    screen: 'loading', // loading, menu, character_select, playing, game_over
+    screen: 'loading', 
     progress: 0,
     selectedHero: null,
-    score: 0,
-    paused: false,
     vetProximity: 0,
     vetStatus: 'EVADIENDO...',
     explosionActive: false,
@@ -26,59 +13,44 @@ const gameState = {
     explosionParticles: []
 };
 
-// --- CONFIGURACIÓN DE HÉROES ---
+// --- DATOS DE PERSONAJES Y ESCENARIOS ---
 const heroes = {
     molly: {
-        id: 'molly',
-        name: 'MOLLY',
-        title: 'DOG WARRIOR',
+        id: 'molly', name: 'MOLLY', title: 'DOG WARRIOR',
         mission: 'Stash clothes & dodge the Vet!',
-        ambient: 'THE HOUSE (Shiba-Den)',
-        reward: 'BONE',
-        colors: { primary: '#a855f7', secondary: '#3b0764', bg: '#1e1b4b' }
+        ambient: 'THE HOUSE (Shiba-Den)', reward: 'BONE',
+        colors: { primary: '#a855f7', bg: '#1e1b4b' }
     },
     agata: {
-        id: 'agata',
-        name: 'AGATA',
-        title: 'FOREST MAGE',
+        id: 'agata', name: 'AGATA', title: 'FOREST MAGE',
         mission: 'Flee the Vet\'s nail clippers!',
-        ambient: 'THE FOREST',
-        reward: 'FISH',
-        colors: { primary: '#22c55e', secondary: '#052e16', bg: '#022c22' }
+        ambient: 'THE FOREST', reward: 'FISH',
+        colors: { primary: '#22c55e', bg: '#022c22' }
     },
     martin: {
-        id: 'martin',
-        name: 'MARTIN',
-        title: 'DESERT KNIGHT',
+        id: 'martin', name: 'MARTIN', title: 'DESERT KNIGHT',
         mission: 'Reach the well. Thirst is rising!',
-        ambient: 'THE DESERT (Ruins)',
-        reward: 'FISH',
-        colors: { primary: '#eab308', secondary: '#451a03', bg: '#431407' }
+        ambient: 'THE DESERT (Ruins)', reward: 'FISH',
+        colors: { primary: '#eab308', bg: '#431407' }
     },
     michi: {
-        id: 'michi',
-        name: 'MICHI',
-        title: 'ROGUE ALCHEMIST',
+        id: 'michi', name: 'MICHI', title: 'ROGUE ALCHEMIST',
         mission: 'Avoid soap, towel & wet doom!',
-        ambient: 'THE BATHROOM (Lab)',
-        reward: 'FISH',
-        colors: { primary: '#06b6d4', secondary: '#083344', bg: '#0f172a' }
+        ambient: 'THE BATHROOM (Lab)', reward: 'FISH',
+        colors: { primary: '#06b6d4', bg: '#0f172a' }
     }
 };
 
-// --- ENTIDADES ---
 const player = { x: 400, y: 300, size: 20, speed: 4, dx: 0, dy: 0 };
 const vet = { x: 100, y: 100, size: 22, speed: 1.5, angle: 0, visionAngle: Math.PI / 4, visionRange: 150 };
 
-// --- SIMULACIÓN DE CARGA CORREGIDA ---
+// --- LOGICA DE PANTALLA DE CARGA ---
 function updateLoading() {
     if (gameState.screen !== 'loading') return;
-    
-    // Incrementa el progreso de forma controlada por frames
     if (gameState.progress < 100) {
-        gameState.progress += 1; 
+        gameState.progress += 1;
     } else {
-        gameState.screen = 'menu'; // Pasa automáticamente al menú al llegar a 100
+        gameState.screen = 'menu';
     }
 }
 
@@ -90,15 +62,13 @@ function triggerExplosion(x, y) {
     for (let i = 0; i < 40; i++) {
         gameState.explosionParticles.push({
             x: x, y: y,
-            vx: (Math.random() - 0.5) * 8,
-            vy: (Math.random() - 0.5) * 8,
-            radius: Math.random() * 3 + 2,
-            color: colors[Math.floor(Math.random() * colors.length)]
+            vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
+            radius: Math.random() * 3 + 2, color: colors[Math.floor(Math.random() * colors.length)]
         });
     }
 }
 
-// --- ESCENARIOS (RENDER DINÁMICO) ---
+// --- RENDERIZADO DE AMBIENTES PIXEL ART ---
 function drawMollyAmbient() {
     ctx.fillStyle = '#3e2723'; ctx.fillRect(50, 80, 700, 380);
     ctx.strokeStyle = '#271510'; ctx.lineWidth = 2;
@@ -106,7 +76,7 @@ function drawMollyAmbient() {
         ctx.beginPath(); ctx.moveTo(50, i); ctx.lineTo(750, i); ctx.stroke();
     }
     ctx.fillStyle = '#512da8'; ctx.fillRect(80, 100, 140, 90);
-    ctx.fillStyle = '#ffffff'; ctx.font = '10px monospace'; ctx.fillText("[BED HIDEOUT]", 90, 150);
+    ctx.fillStyle = '#ffffff'; ctx.font = '10px "Press Start 2P"'; ctx.fillText("[BED HIDEOUT]", 90, 150);
 }
 
 function drawAgataAmbient() {
@@ -137,7 +107,7 @@ function drawHUD() {
     ctx.fillStyle = '#000000';
     ctx.strokeStyle = gameState.selectedHero ? gameState.selectedHero.colors.primary : '#ffffff';
     ctx.lineWidth = 2; ctx.fillRect(520, 20, 260, 50); ctx.strokeRect(520, 20, 260, 50);
-    ctx.fillStyle = '#ffffff'; ctx.font = '10px monospace';
+    ctx.fillStyle = '#ffffff'; ctx.font = '10px "Press Start 2P"';
     ctx.fillText(gameState.selectedHero ? gameState.selectedHero.name : 'HERO', 530, 38);
 }
 
@@ -178,7 +148,7 @@ function updatePhysics() {
     if (distance < (player.size + vet.size)) triggerExplosion(player.x, player.y);
 }
 
-// --- EVENTOS / CONTROLES ---
+// --- CONTROLES Y EVENTOS ---
 window.addEventListener('keydown', e => {
     if (gameState.screen === 'playing' && !gameState.explosionActive) {
         if (e.key === 'ArrowUp' || e.key === 'w') player.dy = -player.speed;
@@ -212,44 +182,40 @@ canvas.addEventListener('click', e => {
     }
 });
 
-// --- BUCLE PRINCIPAL DE RENDERIZADO (LOOP) ---
+// --- OPERACIÓN CENTRAL DE RENDER ---
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (gameState.screen === 'loading') {
-        updateLoading(); // Ejecuta la actualización de carga frame por frame de forma segura
-        
+        updateLoading();
         ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#ec4899'; ctx.font = '24px monospace'; ctx.fillText("FURRY ESCAPADES", 260, 200);
-        ctx.fillStyle = '#ffffff'; ctx.font = '14px monospace'; ctx.fillText(`LOADING ASSETS... ${gameState.progress}%`, 280, 250);
-        
-        // Barra de progreso visual
+        ctx.fillStyle = '#ec4899'; ctx.font = '20px "Press Start 2P"'; ctx.fillText("FURRY ESCAPADES", 220, 200);
+        ctx.fillStyle = '#ffffff'; ctx.font = '12px "Press Start 2P"'; ctx.fillText(`LOADING ASSETS... ${gameState.progress}%`, 250, 250);
         ctx.strokeStyle = '#ffffff'; ctx.strokeRect(250, 290, 300, 20);
         ctx.fillStyle = '#22c55e'; ctx.fillRect(252, 292, (gameState.progress / 100) * 296, 16);
 
     } else if (gameState.screen === 'menu') {
         ctx.fillStyle = '#0b0f19'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#ffffff'; ctx.font = '28px monospace'; ctx.fillText("FURRY ESCAPADES", 240, 150);
+        ctx.fillStyle = '#ffffff'; ctx.font = '24px "Press Start 2P"'; ctx.fillText("FURRY ESCAPADES", 220, 150);
         ctx.fillStyle = '#22c55e'; ctx.fillRect(300, 300, 200, 45);
-        ctx.fillStyle = '#ffffff'; ctx.font = '14px monospace'; ctx.fillText("START GAME", 345, 328);
+        ctx.fillStyle = '#ffffff'; ctx.font = '11px "Press Start 2P"'; ctx.fillText("START GAME", 335, 328);
 
     } else if (gameState.screen === 'character_select') {
         ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
         Object.keys(heroes).forEach((key, index) => {
             const h = heroes[key]; const xOffset = (index % 2) * 400; const yOffset = Math.floor(index / 2) * 210 + 60;
             ctx.fillStyle = h.colors.bg; ctx.fillRect(xOffset + 10, yOffset, 380, 190);
-            ctx.fillStyle = '#ffffff'; ctx.font = '12px monospace'; ctx.fillText(h.name, xOffset + 30, yOffset + 30);
-            ctx.fillStyle = '#aaaaaa'; ctx.font = '10px monospace'; ctx.fillText(h.mission, xOffset + 30, yOffset + 60);
+            ctx.fillStyle = '#ffffff'; ctx.font = '12px "Press Start 2P"'; ctx.fillText(h.name, xOffset + 30, yOffset + 30);
+            ctx.fillStyle = '#aaaaaa'; ctx.font = '8px "Press Start 2P"'; ctx.fillText(h.mission, xOffset + 30, yOffset + 60);
         });
     } else if (gameState.screen === 'playing') {
         drawCurrentAmbient(); drawVet(); drawPlayer(); drawHUD(); updatePhysics();
     } else if (gameState.screen === 'game_over') {
         ctx.fillStyle = '#1e1b4b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#ef4444'; ctx.font = '24px monospace'; ctx.fillText("GAME OVER", 330, 200);
+        ctx.fillStyle = '#ef4444'; ctx.font = '20px "Press Start 2P"'; ctx.fillText("GAME OVER", 330, 200);
     }
 
     requestAnimationFrame(gameLoop);
 }
 
-// Iniciar el bucle de juego directamente
 gameLoop();

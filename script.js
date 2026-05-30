@@ -41,7 +41,7 @@
         <button class="btn btn-green" id="btnStartGame">▶ START GAME</button>
         <button class="btn btn-cyan"  id="btnHowTo">? HOW TO PLAY</button>
       </nav>
-      <div class="mm-footer blink">CLICK ANYWHERE TO LOG AUDIO & BEGIN</div>
+      <div class="mm-footer blink">PRESS ENTER OR CLICK TO BEGIN</div>
     </div>
   </div>
 

@@ -1,227 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Furry Escapades: Outsmart the Vet</title>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
-  <style>
-    /* Estilos integrados para asegurar el Joystick Táctil y Botón de Acción */
-    #joystick-zone {
-      position: absolute;
-      bottom: 40px;
-      left: 40px;
-      width: 120px;
-      height: 120px;
-      background: rgba(255, 255, 255, 0.15);
-      border: 3px solid rgba(255, 255, 255, 0.4);
-      border-radius: 50%;
-      display: none; 
-      touch-action: none;
-      z-index: 9999;
-    }
-    #joystick-stick {
-      position: absolute;
-      top: 35px;
-      left: 35px;
-      width: 50px;
-      height: 50px;
-      background: #ffffff;
-      border-radius: 50%;
-      box-shadow: 0 0 10px rgba(0,0,0,0.6);
-    }
-    #mobile-action-btn {
-      position: absolute;
-      bottom: 60px;
-      right: 40px;
-      width: 90px;
-      height: 90px;
-      background: #ffe600;
-      border: 4px solid #000;
-      color: #000;
-      border-radius: 50%;
-      font-family: 'Press Start 2P', monospace;
-      font-size: 11px;
-      font-weight: bold;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      touch-action: none;
-      box-shadow: 0 4px 0 #000;
-    }
-    #mobile-action-btn:active {
-      transform: scale(0.92);
-      background: #ff9020;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Furry Escapades: Outsmart the Vet</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #090d16;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            border: 4px solid #ec4899;
+            box-shadow: 0 0 20px rgba(236, 72, 153, 0.5);
+            background-color: #000000;
+        }
+    </style>
 </head>
 <body>
-
-  <div id="screen-loading" class="screen active">
-    <div class="loading-wrap">
-      <div class="load-title">
-        <span class="lt-furry">FURRY</span>
-        <span class="lt-escapades">ESCAPADES</span>
-        <span class="lt-sub">✦ OUTSMART THE VET ✦</span>
-      </div>
-      <div class="load-bar-outer">
-        <div class="load-bar-inner" id="loadBar"></div>
-      </div>
-      <div class="load-pct" id="loadPct">0%</div>
-      <div class="load-tip blink">LOADING ASSETS...</div>
-    </div>
-  </div>
-
-  <div id="screen-mainmenu" class="screen">
-    <div class="scanlines"></div>
-    <div class="mm-wrap">
-      <div class="mm-logo">
-        <div class="mm-title">FURRY ESCAPADES</div>
-        <div class="mm-subtitle">◆ OUTSMART THE VET ◆</div>
-      </div>
-      <div class="mm-vet">
-        <img src="assets/images/Veterinaria.png" alt="The Vet" class="mm-vet-img" id="vetTitleImg" />
-        <div class="mm-vet-label blink">⚠ THE VET AWAITS ⚠</div>
-      </div>
-      <nav class="mm-nav">
-        <button class="btn btn-green" id="btnStartGame">▶ START GAME</button>
-        <button class="btn btn-cyan"  id="btnHowTo">? HOW TO PLAY</button>
-      </nav>
-    </div>
-  </div>
-
-  <div id="screen-howtoplay" class="screen">
-    <div class="scanlines"></div>
-    <div class="howto-panel">
-      <h2 class="panel-title yellow">HOW TO PLAY</h2>
-      <div class="controls-grid">
-        <div class="ctrl"><span class="key">W A S D</span><span class="kdesc">Move (PC) / Joystick (Mobile)</span></div>
-        <div class="ctrl"><span class="key">E / BTN</span><span class="kdesc">Hide inside spots</span></div>
-        <div class="ctrl"><span class="key">ESC</span><span class="kdesc">Pause</span></div>
-      </div>
-      <div class="tips">
-        <p>🐱 Stay out of <strong>THE VET'S VISION CONE</strong></p>
-        <p>🙈 Find <strong>HIDING SPOTS</strong> to vanish from sight</p>
-        <p>🏆 Reach the goal for your <strong>REWARD</strong></p>
-      </div>
-      <button class="btn btn-back" id="btnHowToBack">◀ BACK</button>
-    </div>
-  </div>
-
-  <div id="screen-charselect" class="screen">
-    <div class="scanlines scanlines-light"></div>
-    <div class="cs-header-badge"><span>SELECT YOUR HERO</span></div>
-
-    <div class="collage-grid" id="collageGrid">
-      <div class="quad quad-molly" id="char-card-molly">
-        <div class="quad-bg"></div>
-        <div class="quad-content">
-          <div class="quad-index">01</div>
-          <div class="avatar-frame frame-molly">
-            <img src="assets/images/Molly.png" alt="Molly" class="avatar-img" />
-          </div>
-          <div class="quad-info">
-            <div class="char-name molly-text">MOLLY</div>
-            <div class="char-type">🐶 DOG WARRIOR</div>
-            <div class="char-map">📍 THE HOUSE</div>
-          </div>
-          <div class="quad-cta blink">— TAP TO SELECT —</div>
-        </div>
-      </div>
-
-      <div class="quad quad-agata" id="char-card-agata">
-        <div class="quad-bg"></div>
-        <div class="quad-content">
-          <div class="quad-index">02</div>
-          <div class="avatar-frame frame-agata">
-            <img src="assets/images/Agata.png" alt="Agata" class="avatar-img" />
-          </div>
-          <div class="quad-info">
-            <div class="char-name agata-text">AGATA</div>
-            <div class="char-type">🐱 FOREST MAGE</div>
-            <div class="char-map">📍 THE FOREST</div>
-          </div>
-          <div class="quad-cta blink">— TAP TO SELECT —</div>
-        </div>
-      </div>
-
-      <div class="quad quad-martin" id="char-card-martin">
-        <div class="quad-bg"></div>
-        <div class="quad-content">
-          <div class="quad-index">03</div>
-          <div class="avatar-frame frame-martin">
-            <img src="assets/images/Martin.png" alt="Martín" class="avatar-img" />
-          </div>
-          <div class="quad-info">
-            <div class="char-name martin-text">MARTÍN</div>
-            <div class="char-type">🐱 DESERT KNIGHT</div>
-            <div class="char-map">📍 THE DESERT</div>
-          </div>
-          <div class="quad-cta blink">— TAP TO SELECT —</div>
-        </div>
-      </div>
-
-      <div class="quad quad-michi" id="char-card-michi">
-        <div class="quad-bg"></div>
-        <div class="quad-content">
-          <div class="quad-index">04</div>
-          <div class="avatar-frame frame-michi">
-            <img src="assets/images/Michi.png" alt="Michi" class="avatar-img" />
-          </div>
-          <div class="quad-info">
-            <div class="char-name michi-text">MICHI</div>
-            <div class="char-type">🐱 ROGUE ALCHEMIST</div>
-            <div class="char-map">📍 THE BATHROOM</div>
-          </div>
-          <div class="quad-cta blink">— TAP TO SELECT —</div>
-        </div>
-      </div>
-    </div>
-    <button class="btn btn-back cs-back-btn" id="btnCSBack">◀ BACK</button>
-  </div>
-
-  <div id="screen-confirm" class="screen">
-    <div class="scanlines"></div>
-    <div class="confirm-panel">
-      <div class="confirm-title yellow">READY FOR BATTLE?</div>
-      <div class="confirm-display">
-        <img src="" alt="" class="confirm-avatar" id="confirmAvatar" />
-        <div class="confirm-details">
-          <div class="confirm-name"  id="confirmName">—</div>
-          <div class="confirm-level" id="confirmLevel">—</div>
-          <div class="confirm-obj"   id="confirmObj">—</div>
-        </div>
-      </div>
-      <div class="confirm-btns">
-        <button class="btn btn-green" id="btnConfirmYes">▶ LET'S GO!</button>
-        <button class="btn btn-back"  id="btnConfirmNo">◀ CHANGE</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="screen-game" class="screen">
-    <div id="gameCanvasWrap">
-      <canvas id="gameCanvas"></canvas>
-    </div>
-
-    <div id="joystick-zone">
-      <div id="joystick-stick"></div>
-    </div>
-    <button id="mobile-action-btn">HIDE</button>
-
-    <div id="hud">
-      <div class="hud-left"><span class="hud-charname" id="hudCharName">—</span></div>
-      <div class="hud-center">
-        <span class="hud-lbl">VET PROXIMITY</span>
-        <div class="hud-prox-bg"><div class="hud-prox-fill" id="hudProxFill"></div></div>
-      </div>
-      <div class="hud-right"><span class="hud-status" id="hudStatus">EVADING...</span></div>
-    </div>
-    <button class="btn btn-back hud-pause" id="btnPause">⏸ PAUSE</button>
-  </div>
-
-  <script src="script.js"></script>
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    <script src="script.js"></script>
 </body>
 </html>

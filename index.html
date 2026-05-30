@@ -7,19 +7,19 @@
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* Estilos rápidos para el Joystick táctil */
+    /* Estilos integrados para asegurar el Joystick Táctil y Botón de Acción */
     #joystick-zone {
       position: absolute;
       bottom: 40px;
       left: 40px;
       width: 120px;
       height: 120px;
-      background: rgba(255, 255, 255, 0.1);
-      border: 3px solid rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.15);
+      border: 3px solid rgba(255, 255, 255, 0.4);
       border-radius: 50%;
-      display: none; /* Se activa dinámicamente en móviles */
+      display: none; 
       touch-action: none;
-      z-index: 999;
+      z-index: 9999;
     }
     #joystick-stick {
       position: absolute;
@@ -29,30 +29,30 @@
       height: 50px;
       background: #ffffff;
       border-radius: 50%;
-      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      box-shadow: 0 0 10px rgba(0,0,0,0.6);
     }
-    /* Botón de acción rápido para móviles (Esconderse / Sprint) */
     #mobile-action-btn {
       position: absolute;
-      bottom: 50px;
+      bottom: 60px;
       right: 40px;
-      width: 80px;
-      height: 80px;
+      width: 90px;
+      height: 90px;
       background: #ffe600;
       border: 4px solid #000;
       color: #000;
       border-radius: 50%;
       font-family: 'Press Start 2P', monospace;
-      font-size: 10px;
+      font-size: 11px;
       font-weight: bold;
       display: none;
       align-items: center;
       justify-content: center;
-      z-index: 999;
+      z-index: 9999;
       touch-action: none;
+      box-shadow: 0 4px 0 #000;
     }
     #mobile-action-btn:active {
-      transform: scale(0.9);
+      transform: scale(0.92);
       background: #ff9020;
     }
   </style>
@@ -81,17 +81,14 @@
         <div class="mm-title">FURRY ESCAPADES</div>
         <div class="mm-subtitle">◆ OUTSMART THE VET ◆</div>
       </div>
-
       <div class="mm-vet">
         <img src="assets/images/Veterinaria.png" alt="The Vet" class="mm-vet-img" id="vetTitleImg" />
         <div class="mm-vet-label blink">⚠ THE VET AWAITS ⚠</div>
       </div>
-
       <nav class="mm-nav">
         <button class="btn btn-green" id="btnStartGame">▶ START GAME</button>
         <button class="btn btn-cyan"  id="btnHowTo">? HOW TO PLAY</button>
       </nav>
-      <div class="mm-footer blink">CLICK ANYWHERE TO ACTIVATE AUDIO</div>
     </div>
   </div>
 
@@ -102,7 +99,6 @@
       <div class="controls-grid">
         <div class="ctrl"><span class="key">W A S D</span><span class="kdesc">Move (PC) / Joystick (Mobile)</span></div>
         <div class="ctrl"><span class="key">E / BTN</span><span class="kdesc">Hide inside spots</span></div>
-        <div class="ctrl"><span class="key">SHIFT</span><span class="kdesc">Auto-Sprint</span></div>
         <div class="ctrl"><span class="key">ESC</span><span class="kdesc">Pause</span></div>
       </div>
       <div class="tips">
@@ -119,12 +115,12 @@
     <div class="cs-header-badge"><span>SELECT YOUR HERO</span></div>
 
     <div class="collage-grid" id="collageGrid">
-      <div class="quad quad-molly" data-char="molly">
+      <div class="quad quad-molly" id="char-card-molly">
         <div class="quad-bg"></div>
         <div class="quad-content">
           <div class="quad-index">01</div>
           <div class="avatar-frame frame-molly">
-            <img src="assets/images/Molly.png" alt="Molly" class="avatar-img" id="avatarMolly" />
+            <img src="assets/images/Molly.png" alt="Molly" class="avatar-img" />
           </div>
           <div class="quad-info">
             <div class="char-name molly-text">MOLLY</div>
@@ -135,12 +131,12 @@
         </div>
       </div>
 
-      <div class="quad quad-agata" data-char="agata">
+      <div class="quad quad-agata" id="char-card-agata">
         <div class="quad-bg"></div>
         <div class="quad-content">
           <div class="quad-index">02</div>
           <div class="avatar-frame frame-agata">
-            <img src="assets/images/Agata.png" alt="Agata" class="avatar-img" id="avatarAgata" />
+            <img src="assets/images/Agata.png" alt="Agata" class="avatar-img" />
           </div>
           <div class="quad-info">
             <div class="char-name agata-text">AGATA</div>
@@ -151,12 +147,12 @@
         </div>
       </div>
 
-      <div class="quad quad-martin" data-char="martin">
+      <div class="quad quad-martin" id="char-card-martin">
         <div class="quad-bg"></div>
         <div class="quad-content">
           <div class="quad-index">03</div>
           <div class="avatar-frame frame-martin">
-            <img src="assets/images/Martin.png" alt="Martín" class="avatar-img" id="avatarMartin" />
+            <img src="assets/images/Martin.png" alt="Martín" class="avatar-img" />
           </div>
           <div class="quad-info">
             <div class="char-name martin-text">MARTÍN</div>
@@ -167,12 +163,12 @@
         </div>
       </div>
 
-      <div class="quad quad-michi" data-char="michi">
+      <div class="quad quad-michi" id="char-card-michi">
         <div class="quad-bg"></div>
         <div class="quad-content">
           <div class="quad-index">04</div>
           <div class="avatar-frame frame-michi">
-            <img src="assets/images/Michi.png" alt="Michi" class="avatar-img" id="avatarMichi" />
+            <img src="assets/images/Michi.png" alt="Michi" class="avatar-img" />
           </div>
           <div class="quad-info">
             <div class="char-name michi-text">MICHI</div>

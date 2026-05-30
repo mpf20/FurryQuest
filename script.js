@@ -33,7 +33,7 @@
       </div>
 
       <div class="mm-vet">
-        <img src="images/Veterinaria.png" alt="The Vet" class="mm-vet-img" id="vetTitleImg" onerror="this.src='./images/Veterinaria.png'; this.onerror=null;" />
+        <img src="assets/images/Veterinaria.png" alt="The Vet" class="mm-vet-img" id="vetTitleImg" />
         <div class="mm-vet-label blink">⚠ THE VET AWAITS ⚠</div>
       </div>
 
@@ -41,7 +41,7 @@
         <button class="btn btn-green" id="btnStartGame">▶ START GAME</button>
         <button class="btn btn-cyan"  id="btnHowTo">? HOW TO PLAY</button>
       </nav>
-      <div class="mm-footer blink">PRESS ENTER OR CLICK TO BEGIN</div>
+      <div class="mm-footer blink">CLICK ANYWHERE TO LOG AUDIO & BEGIN</div>
     </div>
   </div>
 
@@ -74,7 +74,7 @@
         <div class="quad-content">
           <div class="quad-index">01</div>
           <div class="avatar-frame frame-molly">
-            <img src="images/Molly.png" alt="Molly" class="avatar-img" id="avatarMolly" onerror="this.src='./images/Molly.png'; this.onerror=null;" />
+            <img src="assets/images/Molly.png" alt="Molly" class="avatar-img" id="avatarMolly" />
           </div>
           <div class="quad-info">
             <div class="char-name molly-text">MOLLY</div>
@@ -90,7 +90,7 @@
         <div class="quad-content">
           <div class="quad-index">02</div>
           <div class="avatar-frame frame-agata">
-            <img src="images/Agata.png" alt="Agata" class="avatar-img" id="avatarAgata" onerror="this.src='./images/Agata.png'; this.onerror=null;" />
+            <img src="assets/images/Agata.png" alt="Agata" class="avatar-img" id="avatarAgata" />
           </div>
           <div class="quad-info">
             <div class="char-name agata-text">AGATA</div>
@@ -106,7 +106,7 @@
         <div class="quad-content">
           <div class="quad-index">03</div>
           <div class="avatar-frame frame-martin">
-            <img src="images/Martin.png" alt="Martín" class="avatar-img" id="avatarMartin" onerror="this.src='./images/Martin.png'; this.onerror=null;" />
+            <img src="assets/images/Martin.png" alt="Martín" class="avatar-img" id="avatarMartin" />
           </div>
           <div class="quad-info">
             <div class="char-name martin-text">MARTÍN</div>
@@ -122,7 +122,7 @@
         <div class="quad-content">
           <div class="quad-index">04</div>
           <div class="avatar-frame frame-michi">
-            <img src="images/Michi.png" alt="Michi" class="avatar-img" id="avatarMichi" onerror="this.src='./images/Michi.png'; this.onerror=null;" />
+            <img src="assets/images/Michi.png" alt="Michi" class="avatar-img" id="avatarMichi" />
           </div>
           <div class="quad-info">
             <div class="char-name michi-text">MICHI</div>

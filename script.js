@@ -1,19 +1,20 @@
 /**
  * ═══════════════════════════════════════════════════════════════════
- * FURRY ESCAPADES: OUTSMART THE VET  ·  script.js (v11)
+ * FURRY ESCAPADES: OUTSMART THE VET  ·  script.js (v12)
  *
- * MEJORAS vs v10:
- *  ✅  §3  BGM en mainmenu + track energético al iniciar partida
- *  ✅  §4  changeScreen arranca BGM también en 'mainmenu'
- *  ✅  §5  startGameplay: remove listeners antes de añadir (no acumulación)
- *  ✅  §5  onKeyDown: 'Escape' con mayúscula correcta
- *  ✅  §6  setupGameMap: objetos rect con { x,y,w,h } (no radius)
- *  ✅  §6  isHidden: colisión AABB con rectángulos de muebles
- *  ✅  §7  renderBackground: fondos temáticos + muebles/naturaleza por personaje
- *  ✅  §8  Vet AI: modo patrol / chase real con cono de visión
- *  ✅  §9  Explosion particles en derrota — sin alert(), overlay limpio
- *  ✅  §10 Touch controls: joystick virtual en canvas (móvil)
- *  ✅  §11 endGame: overlay HTML en lugar de alert()
+ * NUEVAS FEATURES vs v11:
+ *  ✅  §2   GS: + timer { seconds, lastMs, hudEl } para el contador
+ *  ✅  §3B  startInGameMusic: track árabe más denso y energético
+ *           (melodía dual, bajo de cuerdas, Doumbek 140 BPM, shimmer)
+ *  ✅  §6   setupGameMap: goal reubicado cerca pero no trivial
+ *  ✅  §8   COUNTDOWN TIMER 20 s: tick via performance.now(), HUD propio
+ *  ✅  §8   LOSE por tiempo agotado → explosión igual que captura
+ *  ✅  §9   Explosión KABOOM mejorada: 120 partículas, sprites mixtos,
+ *           screen-shake, flash de pantalla
+ *  ✅  §11  updateGame: isHidden automático (sin tecla E) al entrar en AABB
+ *  ✅  §12  renderGame: HUD del timer en canvas, meta con label MAP
+ *  ✅  §13  showResultOverlay: muestra tiempo restante al ganar
+ *  ✅  Touch, patrol AI, AABB, fondos temáticos: preservados de v11
  * ═══════════════════════════════════════════════════════════════════
  */
 'use strict';
@@ -49,8 +50,7 @@ const CHARACTERS = {
 };
 
 /* ═══════════════════════════════════════════════════════════════════
-   §2  ESTADO GLOBAL  (sin tocar estructura base — regla de preservación)
-   Se añaden: particles, vetPatrol, touch, explosion
+   §2  ESTADO GLOBAL  (estructura base preservada + extensiones v12)
 ═══════════════════════════════════════════════════════════════════ */
 const GS = {
   screen: 'loading',
@@ -58,32 +58,34 @@ const GS = {
   images: {},
   audioCtx: null,
   bgmNode: null,
-  igMusicNodes: [],   // nodos del track in-game (para poder detenerlos)
+  igMusicNodes: [],
   isPaused: false,
   gameLoopId: null,
   keys: {},
   player: { x: 150, y: 150, vx: 0, vy: 0, isSprinting: false, isHidden: false },
   vet: {
-    x: 900, y: 700, angle: 0, speed: 2.4,
-    mode: 'patrol',           // 'patrol' | 'chase'
+    x: 1100, y: 800, angle: 0, speed: 2.4,
+    mode: 'patrol',
     patrolTarget: { x: 800, y: 600 },
     patrolTimer: 0,
     lostTimer: 0
   },
   map: { width: 1600, height: 1200 },
-  hidingObjects: [],          // array de { x,y,w,h,label }
-  goal: { x: 1450, y: 1050, radius: 45 },
+  hidingObjects: [],
+  goal: { x: 1450, y: 1050, radius: 50 },
   gameResult: null,
   proximity: 0,
-  // Nuevos: partículas de explosión
+  // Partículas de explosión
   particles: [],
-  explosion: { active: false, timer: 0, duration: 90 },
-  // Touch joystick
-  touch: {
-    active: false,
-    startX: 0, startY: 0,
-    dx: 0, dy: 0,
-    id: null
+  explosion: { active: false, timer: 0, duration: 100, shakeFrames: 0 },
+  // Joystick táctil
+  touch: { active: false, startX: 0, startY: 0, dx: 0, dy: 0, id: null },
+  // ── v12 NEW ── Countdown timer
+  timer: {
+    seconds: 20,       // segundos restantes
+    lastMs: 0,         // timestamp del último tick
+    msAcc: 0,          // acumulador de milisegundos
+    running: false
   }
 };
 
@@ -108,16 +110,14 @@ function setLoadBar(pct) {
 async function preloadImages() {
   const keys = Object.keys(IMAGE_ASSETS);
   const total = keys.length;
-  let loadedCount = 0;
+  let n = 0;
   const promises = keys.map(key => new Promise(resolve => {
     const img = new Image();
     img.src = IMAGE_ASSETS[key];
-    const done = () => { GS.images[key] = img; loadedCount++; setLoadBar((loadedCount / total) * 100); resolve(); };
-    img.onload = done;
-    img.onerror = done;
+    const done = () => { GS.images[key] = img; n++; setLoadBar((n / total) * 100); resolve(); };
+    img.onload = done; img.onerror = done;
   }));
-  const timeout = new Promise(r => setTimeout(r, 2500));
-  await Promise.race([Promise.all(promises), timeout]);
+  await Promise.race([Promise.all(promises), new Promise(r => setTimeout(r, 2500))]);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -139,7 +139,9 @@ function stopIgMusic() {
   GS.igMusicNodes = [];
 }
 
-/* ── 3A  Menú principal: arpeggio pentatónico suave ── */
+/* ─────────────────────────────────────────────────────────────────
+   §3A  Menu BGM — melodía pentatónica en triángulo, loop largo
+───────────────────────────────────────────────────────────────── */
 function startMenuBGM() {
   ensureAudio();
   stopBGM();
@@ -148,28 +150,29 @@ function startMenuBGM() {
   const ctx = GS.audioCtx;
   try {
     const master = ctx.createGain();
-    master.gain.setValueAtTime(0.08, ctx.currentTime);
+    master.gain.setValueAtTime(0.07, ctx.currentTime);
     master.connect(ctx.destination);
 
     const osc = ctx.createOscillator();
     osc.type = 'triangle';
-
-    // Melodía pentatónica de 4 notas que se repite (~3 octavos por minuto)
     const notes = [196.00, 220.00, 261.63, 293.66, 329.63, 293.66, 261.63, 220.00];
     const dur = 0.45;
     const now = ctx.currentTime;
-    for (let i = 0; i < 64; i++) {
-      const t = now + i * dur;
-      osc.frequency.setValueAtTime(notes[i % notes.length], t);
+    for (let i = 0; i < 80; i++) {
+      osc.frequency.setValueAtTime(notes[i % notes.length], now + i * dur);
     }
-
     osc.connect(master);
     osc.start(now);
     GS.bgmNode = osc;
   } catch(e) {}
 }
 
-/* ── 3B  In-game: track árabe energético con ritmo percusivo ── */
+/* ─────────────────────────────────────────────────────────────────
+   §3B  In-game BGM — track árabe denso y energético (v12 upgrade)
+   Arquitectura: melodía Hijaz (sawtooth) + contra-melodía una octava
+   abajo (triangle) + bajo de cuerdas (sawtooth grave) +
+   Doumbek a 140 BPM + Riq off-beat + shimmer de alta frecuencia.
+───────────────────────────────────────────────────────────────── */
 function startInGameMusic() {
   ensureAudio();
   stopBGM();
@@ -178,89 +181,132 @@ function startInGameMusic() {
   const ctx = GS.audioCtx;
   try {
     const master = ctx.createGain();
-    master.gain.setValueAtTime(0.09, ctx.currentTime);
+    master.gain.setValueAtTime(0.10, ctx.currentTime);
     master.connect(ctx.destination);
     GS.igMusicNodes.push(master);
 
-    // Melodía Maqam Hijaz (D Eb F# G A Bb C# D) — sawtooth para timbre de oud
-    const HIJAZ = [293.66, 311.13, 369.99, 392.00, 440.00, 466.16, 554.37, 587.33];
-    const motif  = [0,2,3,2,1,0,4,3,2,3,5,4,3,2,1,0,6,5,4,3,2,1,0,7];
-    const durs   = [.18,.11,.15,.11,.18,.22,.15,.11,.18,.15,.22,.15,.11,.18,.11,.22,.15,.11,.18,.15,.11,.15,.18,.28];
+    // Escala Maqam Hijaz enriquecida (D Eb F# G A Bb C# D — dos octavas)
+    const H1 = [293.66, 311.13, 369.99, 392.00, 440.00, 466.16, 554.37, 587.33];
+    const H2 = H1.map(f => f * 2); // octava alta
+    const H0 = H1.map(f => f / 2); // octava baja
 
-    const mel = ctx.createOscillator();
-    mel.type = 'sawtooth';
-    let t = ctx.currentTime;
-    motif.forEach((si, i) => {
-      mel.frequency.setValueAtTime(HIJAZ[si], t);
-      t += (durs[i] || 0.15);
-    });
-    // Repetir el motif varias veces (24 repeticiones ≈ 3–4 min)
-    for (let rep = 1; rep < 24; rep++) {
-      let tr = ctx.currentTime;
-      motif.forEach((si, i) => {
-        mel.frequency.setValueAtTime(HIJAZ[si], tr + rep * t + i * 0.15);
-      });
+    // Motif principal (índices en H1)
+    const MOT_IDX  = [0,2,3,2,1,0, 4,3,2,3, 5,4,3,2,1,0, 6,5,4,3, 2,1,0, 7];
+    const MOT_DUR  = [.13,.09,.12,.09,.13,.17, .12,.09,.13,.12, .17,.12,.09,.13,.09,.17, .12,.09,.13,.12, .13,.09,.13,.22];
+
+    /* ── Melodía sawtooth (voz principal) ── */
+    function scheduleMelody(freqs, startT, gainVal, waveType) {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type = waveType || 'sawtooth';
+      g.gain.setValueAtTime(gainVal, startT);
+      let t = startT;
+      const REPS = 30;
+      for (let rep = 0; rep < REPS; rep++) {
+        MOT_IDX.forEach((si, i) => {
+          osc.frequency.setValueAtTime(freqs[si], t);
+          // Vibrato leve
+          const vib = ctx.createOscillator();
+          vib.frequency.value = 5.5;
+          const vibGain = ctx.createGain();
+          vibGain.gain.setValueAtTime(3, t);
+          vib.connect(vibGain); vibGain.connect(osc.frequency);
+          vib.start(t); vib.stop(t + (MOT_DUR[i] || 0.12));
+          t += (MOT_DUR[i] || 0.12);
+        });
+      }
+      osc.connect(g); g.connect(master);
+      osc.start(startT);
+      GS.igMusicNodes.push(osc, g);
     }
-    const melGain = ctx.createGain();
-    melGain.gain.setValueAtTime(0.4, ctx.currentTime);
-    mel.connect(melGain); melGain.connect(master);
-    mel.start();
-    GS.igMusicNodes.push(mel, melGain);
 
-    // Kick Doumbek: seno 180 → 55 Hz cada ~0.42 s
-    const bpm = 0.42;
-    for (let i = 0; i < 200; i++) {
-      const kt = ctx.currentTime + i * bpm;
-      const ko = ctx.createOscillator(), kg = ctx.createGain();
-      ko.type = 'sine';
-      ko.frequency.setValueAtTime(180, kt);
-      ko.frequency.exponentialRampToValueAtTime(55, kt + 0.08);
-      kg.gain.setValueAtTime(0.38, kt);
-      kg.gain.exponentialRampToValueAtTime(0.001, kt + 0.12);
-      ko.connect(kg); kg.connect(master);
-      ko.start(kt); ko.stop(kt + 0.14);
-      GS.igMusicNodes.push(ko, kg);
+    const now = ctx.currentTime;
+    scheduleMelody(H1, now,        0.38, 'sawtooth');   // voz principal
+    scheduleMelody(H2, now + 0.06, 0.18, 'triangle');   // shimmer alta
+    scheduleMelody(H0, now,        0.22, 'sawtooth');   // bajo
 
-      // Riq off-beat (cada 2 kicks)
-      if (i % 2 === 1) {
+    /* ── Percusión: Doumbek 140 BPM (~0.428 s/beat) ── */
+    const BEAT = 60 / 140;
+    const BARS = 200;
+    for (let i = 0; i < BARS; i++) {
+      const bt = now + i * BEAT;
+
+      // Kick grave (Doumbek DUM)
+      if (i % 4 === 0 || i % 4 === 2) {
+        const ko = ctx.createOscillator(), kg = ctx.createGain();
+        ko.type = 'sine';
+        ko.frequency.setValueAtTime(200, bt);
+        ko.frequency.exponentialRampToValueAtTime(50, bt + 0.09);
+        kg.gain.setValueAtTime(0.45, bt);
+        kg.gain.exponentialRampToValueAtTime(0.001, bt + 0.13);
+        ko.connect(kg); kg.connect(master);
+        ko.start(bt); ko.stop(bt + 0.15);
+        GS.igMusicNodes.push(ko, kg);
+      }
+
+      // Tek (golpe agudo del Doumbek)
+      if (i % 4 === 1) {
+        const to = ctx.createOscillator(), tg = ctx.createGain();
+        to.type = 'triangle';
+        to.frequency.setValueAtTime(900, bt);
+        to.frequency.exponentialRampToValueAtTime(450, bt + 0.04);
+        tg.gain.setValueAtTime(0.22, bt);
+        tg.gain.exponentialRampToValueAtTime(0.001, bt + 0.06);
+        to.connect(tg); tg.connect(master);
+        to.start(bt); to.stop(bt + 0.07);
+        GS.igMusicNodes.push(to, tg);
+      }
+
+      // Riq (pandereta árabe) — off-beat en 2.5
+      if (i % 4 === 3) {
         const ro = ctx.createOscillator(), rg = ctx.createGain();
-        ro.type = 'triangle';
-        ro.frequency.setValueAtTime(620, kt);
-        rg.gain.setValueAtTime(0.10, kt);
-        rg.gain.exponentialRampToValueAtTime(0.001, kt + 0.04);
+        ro.type = 'square';
+        ro.frequency.setValueAtTime(1400, bt + BEAT * 0.5);
+        rg.gain.setValueAtTime(0.10, bt + BEAT * 0.5);
+        rg.gain.exponentialRampToValueAtTime(0.001, bt + BEAT * 0.5 + 0.035);
         ro.connect(rg); rg.connect(master);
-        ro.start(kt); ro.stop(kt + 0.05);
+        ro.start(bt + BEAT * 0.5);
+        ro.stop(bt + BEAT * 0.5 + 0.04);
         GS.igMusicNodes.push(ro, rg);
       }
     }
-  } catch(e) {}
+
+    /* ── Bordón de 4ª (nota pedal grave continua) ── */
+    const drone = ctx.createOscillator(), dg = ctx.createGain();
+    drone.type = 'sawtooth';
+    drone.frequency.setValueAtTime(73.42, now); // D2
+    dg.gain.setValueAtTime(0.06, now);
+    drone.connect(dg); dg.connect(master);
+    drone.start(now);
+    GS.igMusicNodes.push(drone, dg);
+
+  } catch(e) { console.warn('InGameMusic error:', e); }
 }
 
-/* ── 3C  SFX selección personaje ── */
+/* ── 3C  SFX Selección ── */
 function playSynthSFX(type) {
   ensureAudio();
   if (!GS.audioCtx) return;
   const ctx = GS.audioCtx;
   try {
-    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    const osc = ctx.createOscillator(), g = ctx.createGain();
     if (type === 'bark') {
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(180, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.15);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      g.gain.setValueAtTime(0.15, ctx.currentTime);
     } else {
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(400, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(700, ctx.currentTime + 0.2);
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      g.gain.setValueAtTime(0.12, ctx.currentTime);
     }
-    gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-    osc.connect(gain); gain.connect(ctx.destination);
+    g.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+    osc.connect(g); g.connect(ctx.destination);
     osc.start(); osc.stop(ctx.currentTime + 0.25);
   } catch(e) {}
 }
 
-/* ── 3D  Jingle WIN ── */
+/* ── 3D  WIN jingle ── */
 function playWinJingle() {
   ensureAudio();
   if (!GS.audioCtx) return;
@@ -277,7 +323,7 @@ function playWinJingle() {
   });
 }
 
-/* ── 3E  Jingle LOSE ── */
+/* ── 3E  LOSE jingle ── */
 function playLoseJingle() {
   ensureAudio();
   if (!GS.audioCtx) return;
@@ -303,7 +349,6 @@ function changeScreen(screenId) {
   if (target) target.classList.add('active');
   GS.screen = screenId;
 
-  // ── FIX: BGM en mainmenu también ──
   if (screenId === 'mainmenu') {
     stopIgMusic();
     startMenuBGM();
@@ -316,34 +361,32 @@ function changeScreen(screenId) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   §5  SELECTION MECHANICS
+   §5  SELECCIÓN DE PERSONAJE
 ═══════════════════════════════════════════════════════════════════ */
 function selectCharacter(charId) {
   const data = CHARACTERS[charId];
   if (!data) return;
   GS.char = data;
   playSynthSFX(charId === 'molly' ? 'bark' : 'meow');
-
   const avatar = document.getElementById('confirmAvatar');
   if (avatar) avatar.src = data.imgPath;
   document.getElementById('confirmName').textContent = data.name;
   document.getElementById('confirmName').className = `confirm-name ${charId}-text`;
   document.getElementById('confirmLevel').textContent = data.type;
-  document.getElementById('confirmObj').textContent = `LOCATION: ${data.mapName}\n• OBJECTIVE: ${data.mission}`;
+  document.getElementById('confirmObj').textContent =
+    `LOCATION: ${data.mapName}\n• OBJECTIVE: ${data.mission}`;
   changeScreen('confirm');
 }
 
 function bindCharCards() {
   document.querySelectorAll('.quad').forEach(card => {
-    const charId = card.getAttribute('data-char');
-    card.addEventListener('click', () => { ensureAudio(); selectCharacter(charId); });
+    const id = card.getAttribute('data-char');
+    card.addEventListener('click', () => { ensureAudio(); selectCharacter(id); });
   });
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   §6  GAME MAP SETUP — objetos rect temáticos por personaje
-   Cada objeto: { x, y, w, h, label, color, type }
-   La colisión AABB reemplaza el viejo Math.hypot con radius.
+   §6  SETUP DEL MAPA — objetos AABB temáticos por personaje
 ═══════════════════════════════════════════════════════════════════ */
 function setupGameMap() {
   GS.player.x = 150; GS.player.y = 150;
@@ -357,408 +400,478 @@ function setupGameMap() {
   GS.gameResult = null;
   GS.isPaused = false;
   GS.particles = [];
-  GS.explosion = { active: false, timer: 0, duration: 90 };
+  GS.explosion = { active: false, timer: 0, duration: 100, shakeFrames: 0 };
+  // Reset timer
+  GS.timer.seconds = 20;
+  GS.timer.msAcc   = 0;
+  GS.timer.lastMs  = performance.now();
+  GS.timer.running = false; // arrancará en el primer frame de updateGame
 
   const id = GS.char ? GS.char.id : 'molly';
 
+  // META: siempre en la esquina superior derecha del mapa
+  GS.goal = { x: 1430, y: 80, radius: 50 };
+
+  /* — Molly: THE HOUSE — */
   if (id === 'molly') {
-    // THE HOUSE: cama, sofá, armario
     GS.hidingObjects = [
-      { x: 200, y: 180, w: 260, h: 130, label: 'CAMA',    color: '#8a5cf6', type: 'bed'     },
-      { x: 700, y: 420, w: 300, h: 110, label: 'SOFÁ',    color: '#7c4dff', type: 'couch'   },
-      { x: 1100, y: 200, w: 140, h: 200, label: 'ARMARIO', color: '#5e35b1', type: 'cabinet' },
-      { x: 400, y: 700, w: 200, h: 120, label: 'CAMA 2',  color: '#8a5cf6', type: 'bed'     },
-      { x: 900, y: 850, w: 260, h: 110, label: 'SOFÁ 2',  color: '#7c4dff', type: 'couch'   },
-      { x: 200, y: 900, w: 140, h: 180, label: 'CAJÓN',   color: '#5e35b1', type: 'cabinet' },
+      { x: 190, y: 170, w: 270, h: 140, label: 'CAMA',     color: '#8a5cf6', type: 'bed'     },
+      { x: 680, y: 410, w: 310, h: 120, label: 'SOFÁ',     color: '#7c4dff', type: 'couch'   },
+      { x: 1080, y: 180, w: 150, h: 210, label: 'ARMARIO', color: '#5e35b1', type: 'cabinet' },
+      { x: 380, y: 680, w: 210, h: 130, label: 'CAMA 2',   color: '#8a5cf6', type: 'bed'     },
+      { x: 880, y: 840, w: 270, h: 120, label: 'SOFÁ 2',   color: '#7c4dff', type: 'couch'   },
+      { x: 190, y: 880, w: 150, h: 190, label: 'CAJÓN',    color: '#5e35b1', type: 'cabinet' },
     ];
+
+  /* — Agata: THE FOREST — */
   } else if (id === 'agata') {
-    // THE FOREST: troncos y arbustos
     GS.hidingObjects = [
-      { x: 280, y: 200, w: 90,  h: 260, label: 'TRONCO',   color: '#5d4037', type: 'trunk' },
-      { x: 620, y: 380, w: 220, h: 100, label: 'ARBUSTO',  color: '#2e7d32', type: 'bush'  },
-      { x: 980, y: 200, w: 100, h: 280, label: 'TRONCO',   color: '#5d4037', type: 'trunk' },
-      { x: 400, y: 700, w: 240, h: 110, label: 'ARBUSTO',  color: '#388e3c', type: 'bush'  },
-      { x: 1150, y: 600, w: 85, h: 260, label: 'TRONCO',   color: '#4e342e', type: 'trunk' },
-      { x: 700, y: 850, w: 200, h: 100, label: 'ARBUSTO',  color: '#2e7d32', type: 'bush'  },
+      { x: 270, y: 190, w: 95,  h: 270, label: 'TRONCO',  color: '#5d4037', type: 'trunk' },
+      { x: 610, y: 370, w: 230, h: 110, label: 'ARBUSTO', color: '#2e7d32', type: 'bush'  },
+      { x: 970, y: 190, w: 105, h: 290, label: 'TRONCO',  color: '#5d4037', type: 'trunk' },
+      { x: 390, y: 690, w: 250, h: 120, label: 'ARBUSTO', color: '#388e3c', type: 'bush'  },
+      { x: 1140, y: 590, w: 90, h: 270, label: 'TRONCO',  color: '#4e342e', type: 'trunk' },
+      { x: 690, y: 840, w: 210, h: 110, label: 'ARBUSTO', color: '#2e7d32', type: 'bush'  },
     ];
+
+  /* — Martín: THE DESERT — */
   } else if (id === 'martin') {
-    // THE DESERT: ruinas, columnas, pozo
     GS.hidingObjects = [
-      { x: 250, y: 200, w: 300, h: 80,  label: 'MURO',     color: '#795548', type: 'wall'   },
-      { x: 750, y: 320, w: 70,  h: 220, label: 'COLUMNA',  color: '#8d6e63', type: 'column' },
-      { x: 950, y: 180, w: 70,  h: 220, label: 'COLUMNA',  color: '#8d6e63', type: 'column' },
-      { x: 1200, y: 400, w: 130, h: 130, label: 'POZO',    color: '#6d4c41', type: 'well'   },
-      { x: 350, y: 700, w: 280, h: 80,  label: 'MURO 2',   color: '#795548', type: 'wall'   },
-      { x: 800, y: 850, w: 160, h: 80,  label: 'DUNA',     color: '#c8a165', type: 'dune'   },
+      { x: 240, y: 190, w: 310, h: 90,  label: 'MURO',    color: '#795548', type: 'wall'   },
+      { x: 740, y: 310, w: 75,  h: 230, label: 'COLUMNA', color: '#8d6e63', type: 'column' },
+      { x: 940, y: 170, w: 75,  h: 230, label: 'COLUMNA', color: '#8d6e63', type: 'column' },
+      { x: 1180, y: 390, w: 140, h: 140, label: 'POZO',   color: '#6d4c41', type: 'well'   },
+      { x: 340, y: 690, w: 290, h: 90,  label: 'MURO 2',  color: '#795548', type: 'wall'   },
+      { x: 790, y: 840, w: 170, h: 85,  label: 'DUNA',    color: '#c8a165', type: 'dune'   },
     ];
+
+  /* — Michi: THE BATHROOM — */
   } else {
-    // THE BATHROOM: bañera, cesto, estante
     GS.hidingObjects = [
-      { x: 180, y: 180, w: 320, h: 130, label: 'BAÑERA',   color: '#0288d1', type: 'tub'    },
-      { x: 700, y: 350, w: 130, h: 170, label: 'CESTO',    color: '#00838f', type: 'basket' },
-      { x: 1050, y: 180, w: 260, h: 80, label: 'ESTANTE',  color: '#006064', type: 'shelf'  },
-      { x: 350, y: 720, w: 300, h: 120, label: 'BAÑERA 2', color: '#0288d1', type: 'tub'    },
-      { x: 900, y: 800, w: 130, h: 170, label: 'CESTO 2',  color: '#00838f', type: 'basket' },
-      { x: 1150, y: 600, w: 260, h: 80, label: 'ESTANTE',  color: '#006064', type: 'shelf'  },
+      { x: 170, y: 170, w: 330, h: 140, label: 'BAÑERA',   color: '#0288d1', type: 'tub'    },
+      { x: 690, y: 340, w: 140, h: 180, label: 'CESTO',    color: '#00838f', type: 'basket' },
+      { x: 1040, y: 170, w: 270, h: 90, label: 'ESTANTE',  color: '#006064', type: 'shelf'  },
+      { x: 340, y: 710, w: 310, h: 130, label: 'BAÑERA 2', color: '#0288d1', type: 'tub'    },
+      { x: 890, y: 790, w: 140, h: 180, label: 'CESTO 2',  color: '#00838f', type: 'basket' },
+      { x: 1140, y: 590, w: 270, h: 90, label: 'ESTANTE',  color: '#006064', type: 'shelf'  },
     ];
   }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   §7  FONDO TEMÁTICO + DIBUJO DE MUEBLES/NATURALEZA EN CANVAS
+   §7  RENDER — FONDOS TEMÁTICOS Y OBJETOS DE ESCONDITE
 ═══════════════════════════════════════════════════════════════════ */
 
-/* ── 7A  Fondo y decoración estática por nivel ── */
+/* ── 7A  Suelo temático ── */
 function renderBackground(ctx) {
   const id = GS.char ? GS.char.id : 'molly';
   const W = GS.map.width, H = GS.map.height;
 
   if (id === 'molly') {
-    // Suelo de madera
-    ctx.fillStyle = '#3e2723';
-    ctx.fillRect(0, 0, W, H);
-    // Tablas del suelo
-    ctx.strokeStyle = '#4e342e'; ctx.lineWidth = 2;
-    for (let y = 0; y < H; y += 80) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-    for (let x = 0; x < W; x += 120) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    // Parquet de madera
+    ctx.fillStyle = '#3e2723'; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#4e342e'; ctx.lineWidth = 1.5;
+    for (let y = 0; y < H; y += 80) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    for (let x = 0; x < W; x += 120) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    // Nudo de madera decorativo
+    for (let i = 0; i < 12; i++) {
+      const kx = (i*389)%W, ky = (i*271)%H;
+      ctx.strokeStyle = 'rgba(78,52,46,0.5)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(kx, ky, 14, 8, (i%3)*0.5, 0, Math.PI*2); ctx.stroke();
+    }
     // Alfombra central
-    ctx.fillStyle = '#4a148c';
-    ctx.fillRect(300, 350, 700, 400);
-    ctx.strokeStyle = '#7b1fa2'; ctx.lineWidth = 6;
-    ctx.strokeRect(320, 370, 660, 360);
+    ctx.fillStyle = '#4a148c'; ctx.fillRect(290, 330, 720, 420);
+    ctx.strokeStyle = '#7b1fa2'; ctx.lineWidth = 7; ctx.strokeRect(308, 348, 684, 384);
+    ctx.strokeStyle = '#ab47bc'; ctx.lineWidth = 2; ctx.strokeRect(325, 365, 650, 350);
 
   } else if (id === 'agata') {
-    // Suelo de bosque
-    ctx.fillStyle = '#1b5e20';
-    ctx.fillRect(0, 0, W, H);
-    // Manchas de hierba oscura
-    ctx.fillStyle = '#2e7d32';
-    for (let i = 0; i < 40; i++) {
-      const gx = (i * 347) % W, gy = (i * 229) % H;
-      ctx.fillRect(gx, gy, 60 + (i % 5) * 20, 40 + (i % 4) * 15);
+    // Suelo de bosque con musgo
+    ctx.fillStyle = '#1b5e20'; ctx.fillRect(0, 0, W, H);
+    // Variación de color: parches de musgo
+    for (let i = 0; i < 50; i++) {
+      const gx = (i*347)%W, gy = (i*229)%H;
+      ctx.fillStyle = i%3===0 ? '#2e7d32' : (i%3===1 ? '#33691e' : '#1b5e20');
+      ctx.fillRect(gx, gy, 60+(i%5)*22, 38+(i%4)*14);
+    }
+    // Raíces en el suelo
+    ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 2;
+    for (let i = 0; i < 14; i++) {
+      const rx = (i*503)%W, ry = (i*317)%H;
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.bezierCurveTo(rx+40, ry-20, rx+80, ry+30, rx+120, ry+10);
+      ctx.stroke();
     }
 
   } else if (id === 'martin') {
-    // Arena del desierto
-    ctx.fillStyle = '#e6b87a';
-    ctx.fillRect(0, 0, W, H);
-    // Manchas de arena más oscura
-    ctx.fillStyle = '#d4a05a';
-    for (let i = 0; i < 30; i++) {
-      const gx = (i * 413) % W, gy = (i * 317) % H;
-      ctx.beginPath();
-      ctx.ellipse(gx, gy, 80 + (i % 4)*30, 30 + (i%3)*12, 0, 0, Math.PI*2);
-      ctx.fill();
+    // Arenas del desierto
+    ctx.fillStyle = '#e6b87a'; ctx.fillRect(0, 0, W, H);
+    // Ondas de arena
+    for (let i = 0; i < 35; i++) {
+      const gx = (i*413)%W, gy = (i*317)%H;
+      ctx.fillStyle = i%2===0 ? '#d4a05a' : '#edd89a';
+      ctx.beginPath(); ctx.ellipse(gx, gy, 90+(i%4)*32, 28+(i%3)*10, 0, 0, Math.PI*2); ctx.fill();
     }
-    // Grietas
-    ctx.strokeStyle = '#bf9040'; ctx.lineWidth = 1.5;
-    for (let i = 0; i < 18; i++) {
-      const cx = (i * 521) % W, cy = (i * 389) % H;
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + 30, cy + 50); ctx.stroke();
+    // Grietas del suelo
+    ctx.strokeStyle = '#bf9040'; ctx.lineWidth = 1;
+    for (let i = 0; i < 22; i++) {
+      const cx = (i*521)%W, cy = (i*389)%H;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx+25, cy+40); ctx.lineTo(cx+50, cy+15); ctx.stroke();
     }
 
   } else {
     // Baldosas de baño
-    ctx.fillStyle = '#b2ebf2';
-    ctx.fillRect(0, 0, W, H);
-    const TILE = 80;
-    for (let row = 0; row < Math.ceil(H/TILE); row++) {
-      for (let col = 0; col < Math.ceil(W/TILE); col++) {
-        ctx.strokeStyle = '#80cbc4'; ctx.lineWidth = 1.5;
-        ctx.strokeRect(col*TILE, row*TILE, TILE, TILE);
-        if ((row + col) % 2 === 0) {
-          ctx.fillStyle = 'rgba(0,188,212,0.08)';
-          ctx.fillRect(col*TILE+1, row*TILE+1, TILE-2, TILE-2);
-        }
+    ctx.fillStyle = '#b2ebf2'; ctx.fillRect(0, 0, W, H);
+    const T = 80;
+    for (let row = 0; row < Math.ceil(H/T); row++) {
+      for (let col = 0; col < Math.ceil(W/T); col++) {
+        if ((row+col)%2===0) { ctx.fillStyle='rgba(0,188,212,0.09)'; ctx.fillRect(col*T+1,row*T+1,T-2,T-2); }
+        ctx.strokeStyle='#80cbc4'; ctx.lineWidth=1.2; ctx.strokeRect(col*T, row*T, T, T);
       }
     }
+    // Junta de azulejo más oscura cada 4
+    ctx.strokeStyle='rgba(0,131,143,0.35)'; ctx.lineWidth=2.5;
+    for (let r=0; r<Math.ceil(H/(T*4)); r++) { ctx.beginPath(); ctx.moveTo(0,r*T*4); ctx.lineTo(W,r*T*4); ctx.stroke(); }
+    for (let c=0; c<Math.ceil(W/(T*4)); c++) { ctx.beginPath(); ctx.moveTo(c*T*4,0); ctx.lineTo(c*T*4,H); ctx.stroke(); }
   }
 }
 
-/* ── 7B  Dibujar objetos de escondite con aspecto visual temático ── */
+/* ── 7B  Objetos de escondite ── */
 function renderHidingObject(ctx, obj) {
   const { x, y, w, h, color, type } = obj;
-
   ctx.save();
 
-  if (type === 'bed') {
-    // Sábana
-    ctx.fillStyle = '#ede7f6'; ctx.fillRect(x, y, w, h);
-    // Cabecero
-    ctx.fillStyle = color; ctx.fillRect(x, y, w, h * 0.28);
-    // Almohadas
-    ctx.fillStyle = '#fff'; ctx.fillRect(x + 20, y + h*0.32, w*0.38, h*0.38);
-    ctx.fillRect(x + w*0.55, y + h*0.32, w*0.38, h*0.38);
-    // Borde
-    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
+  switch (type) {
 
-  } else if (type === 'couch') {
-    // Cuerpo sofá
-    ctx.fillStyle = '#7c4dff'; ctx.fillRect(x, y, w, h);
-    // Respaldo
-    ctx.fillStyle = '#5e35b1'; ctx.fillRect(x, y, w, h * 0.4);
-    // Cojines
-    ctx.fillStyle = '#b39ddb';
-    ctx.fillRect(x + 10, y + h*0.42, w*0.3, h*0.5);
-    ctx.fillRect(x + w*0.36, y + h*0.42, w*0.3, h*0.5);
-    ctx.fillRect(x + w*0.68, y + h*0.42, w*0.28, h*0.5);
-    ctx.strokeStyle = '#4527a0'; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
-
-  } else if (type === 'cabinet') {
-    // Marco
-    ctx.fillStyle = '#4e342e'; ctx.fillRect(x, y, w, h);
-    // Puertas
-    ctx.fillStyle = '#6d4c41'; ctx.fillRect(x+6, y+6, w/2-9, h*0.88);
-    ctx.fillRect(x+w/2+3, y+6, w/2-9, h*0.88);
-    // Pomos
-    ctx.fillStyle = '#ffcc02';
-    ctx.beginPath(); ctx.arc(x+w/2-8, y+h/2, 6, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(x+w/2+8, y+h/2, 6, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
-
-  } else if (type === 'trunk') {
-    // Tronco de árbol
-    ctx.fillStyle = '#5d4037'; ctx.fillRect(x, y, w, h);
-    // Anillos de madera
-    ctx.strokeStyle = '#4e342e'; ctx.lineWidth = 2;
-    for (let ry = y + 30; ry < y + h - 20; ry += 40) {
-      ctx.beginPath(); ctx.moveTo(x+4, ry); ctx.lineTo(x+w-4, ry); ctx.stroke();
+    case 'bed': {
+      ctx.fillStyle='#ede7f6'; ctx.fillRect(x,y,w,h);
+      ctx.fillStyle=color; ctx.fillRect(x,y,w,h*0.3);
+      // Almohadas
+      ctx.fillStyle='#fff';
+      ctx.fillRect(x+15,y+h*0.34,w*0.36,h*0.4);
+      ctx.fillRect(x+w*0.52,y+h*0.34,w*0.36,h*0.4);
+      // Dobladillo sábana
+      ctx.fillStyle='#d1c4e9'; ctx.fillRect(x,y+h*0.76,w,h*0.06);
+      ctx.strokeStyle=color; ctx.lineWidth=3; ctx.strokeRect(x,y,w,h);
+      break;
     }
-    // Copa
-    ctx.fillStyle = '#2e7d32';
-    ctx.beginPath();
-    ctx.ellipse(x + w/2, y - 40, w * 0.9, 80, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.strokeStyle = '#1b5e20'; ctx.lineWidth = 3; ctx.stroke();
 
-  } else if (type === 'bush') {
-    // Arbusto
-    ctx.fillStyle = '#388e3c';
-    ctx.beginPath(); ctx.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#2e7d32';
-    ctx.beginPath(); ctx.ellipse(x + w*0.3, y + h*0.35, w*0.32, h*0.42, 0, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(x + w*0.72, y + h*0.38, w*0.3, h*0.38, 0, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#1b5e20'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI*2); ctx.stroke();
+    case 'couch': {
+      // Patas
+      ctx.fillStyle='#5e35b1';
+      [[x+8,y+h],[x+w-18,y+h]].forEach(([lx,ly])=>{ ctx.fillRect(lx,ly-8,10,14); });
+      // Cuerpo
+      ctx.fillStyle='#7c4dff'; ctx.fillRect(x,y,w,h);
+      // Respaldo
+      ctx.fillStyle='#5e35b1'; ctx.fillRect(x,y,w,h*0.4);
+      // Cojines
+      ctx.fillStyle='#b39ddb';
+      ctx.fillRect(x+8,y+h*0.44,w*0.29,h*0.5);
+      ctx.fillRect(x+w*0.365,y+h*0.44,w*0.28,h*0.5);
+      ctx.fillRect(x+w*0.68,y+h*0.44,w*0.28,h*0.5);
+      ctx.strokeStyle='#4527a0'; ctx.lineWidth=3; ctx.strokeRect(x,y,w,h);
+      break;
+    }
 
-  } else if (type === 'wall') {
-    // Muro de ruinas
-    ctx.fillStyle = '#8d6e63';
-    ctx.fillRect(x, y, w, h);
-    // Ladrillos
-    const brickW = 70, brickH = 28;
-    for (let row = 0; row < Math.ceil(h / brickH) + 1; row++) {
-      const offset = (row % 2) * (brickW / 2);
-      for (let col = -1; col < Math.ceil(w / brickW) + 1; col++) {
-        const bx = x + col * brickW + offset;
-        const by = y + row * brickH;
-        ctx.strokeStyle = '#6d4c41'; ctx.lineWidth = 2;
-        ctx.strokeRect(bx, by, brickW, brickH);
+    case 'cabinet': {
+      ctx.fillStyle='#4e342e'; ctx.fillRect(x,y,w,h);
+      // Puertas
+      ctx.fillStyle='#6d4c41';
+      ctx.fillRect(x+6,y+8,w/2-10,h*0.86);
+      ctx.fillRect(x+w/2+4,y+8,w/2-10,h*0.86);
+      // Pomos
+      ctx.fillStyle='#ffd600';
+      ctx.beginPath(); ctx.arc(x+w/2-10,y+h/2,7,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+w/2+10,y+h/2,7,0,Math.PI*2); ctx.fill();
+      // Zócalo
+      ctx.fillStyle='#3e2723'; ctx.fillRect(x,y+h-14,w,14);
+      ctx.strokeStyle='#3e2723'; ctx.lineWidth=3; ctx.strokeRect(x,y,w,h);
+      break;
+    }
+
+    case 'trunk': {
+      // Raíces
+      ctx.strokeStyle='#3e2723'; ctx.lineWidth=4;
+      [[-20,h*0.85],[w+10,h*0.7],[-15,h*0.6]].forEach(([rx,ry])=>{
+        ctx.beginPath(); ctx.moveTo(x+w/2,y+ry); ctx.quadraticCurveTo(x+w/2+rx*0.5,y+ry+20,x+rx,y+h+10); ctx.stroke();
+      });
+      // Tronco
+      const grad = ctx.createLinearGradient(x,0,x+w,0);
+      grad.addColorStop(0,'#4e342e'); grad.addColorStop(0.4,color); grad.addColorStop(1,'#3e2723');
+      ctx.fillStyle=grad; ctx.fillRect(x,y,w,h);
+      // Anillos
+      ctx.strokeStyle='rgba(62,39,35,0.6)'; ctx.lineWidth=2;
+      for(let ry=y+35;ry<y+h-20;ry+=45){
+        ctx.beginPath(); ctx.moveTo(x+4,ry); ctx.lineTo(x+w-4,ry); ctx.stroke();
       }
+      // Copa del árbol
+      ctx.fillStyle='#1b5e20';
+      ctx.beginPath(); ctx.ellipse(x+w/2,y-50,w*1.1,85,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#2e7d32';
+      ctx.beginPath(); ctx.ellipse(x+w/2-15,y-70,w*0.7,60,-.3,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#1b5e20'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.ellipse(x+w/2,y-50,w*1.1,85,0,0,Math.PI*2); ctx.stroke();
+      break;
     }
-    ctx.strokeStyle = '#5d4037'; ctx.lineWidth = 4; ctx.strokeRect(x, y, w, h);
 
-  } else if (type === 'column') {
-    // Columna romana
-    ctx.fillStyle = color; ctx.fillRect(x, y, w, h);
-    // Franjas
-    ctx.strokeStyle = '#a1887f'; ctx.lineWidth = 3;
-    for (let cy = y + 30; cy < y + h - 20; cy += 50) {
-      ctx.beginPath(); ctx.moveTo(x+3, cy); ctx.lineTo(x+w-3, cy); ctx.stroke();
+    case 'bush': {
+      ctx.fillStyle='#2e7d32';
+      ctx.beginPath(); ctx.ellipse(x+w/2,y+h*0.6,w*0.52,h*0.48,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#388e3c';
+      ctx.beginPath(); ctx.ellipse(x+w*0.28,y+h*0.42,w*0.34,h*0.45,-.2,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x+w*0.72,y+h*0.38,w*0.32,h*0.42,.2,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#43a047';
+      ctx.beginPath(); ctx.ellipse(x+w/2,y+h*0.25,w*0.3,h*0.36,0,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#1b5e20'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.ellipse(x+w/2,y+h*0.6,w*0.52,h*0.48,0,0,Math.PI*2); ctx.stroke();
+      break;
     }
-    // Capitel
-    ctx.fillStyle = '#a1887f';
-    ctx.fillRect(x - 10, y, w + 20, 22);
-    ctx.fillRect(x - 10, y + h - 22, w + 20, 22);
-    ctx.strokeStyle = '#795548'; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
 
-  } else if (type === 'well') {
-    // Pozo circular
-    ctx.fillStyle = '#6d4c41';
-    ctx.beginPath(); ctx.arc(x + w/2, y + h/2, w/2, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#4e342e';
-    ctx.beginPath(); ctx.arc(x + w/2, y + h/2, w*0.35, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#0288d1';
-    ctx.beginPath(); ctx.arc(x + w/2, y + h/2, w*0.25, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.arc(x + w/2, y + h/2, w/2, 0, Math.PI*2); ctx.stroke();
-
-  } else if (type === 'dune') {
-    // Duna de arena
-    ctx.fillStyle = '#c8a165';
-    ctx.beginPath();
-    ctx.moveTo(x, y + h);
-    ctx.quadraticCurveTo(x + w/2, y - 20, x + w, y + h);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#d4b483';
-    ctx.beginPath();
-    ctx.moveTo(x + w*0.15, y + h);
-    ctx.quadraticCurveTo(x + w/2, y + 10, x + w*0.85, y + h);
-    ctx.closePath(); ctx.fill();
-
-  } else if (type === 'tub') {
-    // Bañera
-    ctx.fillStyle = '#e0f7fa'; ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = '#b2ebf2'; ctx.fillRect(x + 15, y + 20, w - 30, h - 35);
-    ctx.fillStyle = '#4dd0e1';
-    ctx.fillRect(x + 15, y + h - 30, w - 30, 15); // agua
-    ctx.fillStyle = color; ctx.fillRect(x, y, w, 18);  // borde
-    ctx.fillRect(x, y + h - 18, w, 18);
-    ctx.strokeStyle = '#00838f'; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
-    // Grifo
-    ctx.fillStyle = '#bdbdbd';
-    ctx.fillRect(x + w/2 - 10, y - 18, 20, 22);
-
-  } else if (type === 'basket') {
-    // Cesto de ropa
-    ctx.fillStyle = '#80cbc4'; ctx.fillRect(x, y, w, h);
-    // Rejilla
-    ctx.strokeStyle = '#00838f'; ctx.lineWidth = 2;
-    for (let cx2 = x + 16; cx2 < x + w; cx2 += 16) {
-      ctx.beginPath(); ctx.moveTo(cx2, y); ctx.lineTo(cx2, y + h); ctx.stroke();
+    case 'wall': {
+      ctx.fillStyle='#8d6e63'; ctx.fillRect(x,y,w,h);
+      const BW=65, BH=25;
+      for(let row=0; row<Math.ceil(h/BH)+1; row++){
+        const off=(row%2)*(BW/2);
+        for(let col=-1; col<Math.ceil(w/BW)+1; col++){
+          ctx.strokeStyle='#6d4c41'; ctx.lineWidth=1.8;
+          ctx.strokeRect(x+col*BW+off, y+row*BH, BW, BH);
+        }
+      }
+      // Musgo en el muro
+      ctx.fillStyle='rgba(46,125,50,0.25)';
+      for(let i=0;i<8;i++){
+        ctx.fillRect(x+(i*89)%w, y+h-10, 22, 10);
+      }
+      ctx.strokeStyle='#5d4037'; ctx.lineWidth=4; ctx.strokeRect(x,y,w,h);
+      break;
     }
-    for (let cy2 = y + 20; cy2 < y + h; cy2 += 20) {
-      ctx.beginPath(); ctx.moveTo(x, cy2); ctx.lineTo(x + w, cy2); ctx.stroke();
-    }
-    // Tapa
-    ctx.fillStyle = '#00838f';
-    ctx.fillRect(x - 5, y - 15, w + 10, 20);
-    ctx.strokeStyle = '#006064'; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
 
-  } else if (type === 'shelf') {
-    // Estante
-    ctx.fillStyle = '#004d40'; ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = '#00695c'; ctx.fillRect(x, y + h - 12, w, 12);
-    // Frascos
-    const bottleColors = ['#e040fb','#00e5ff','#69f0ae','#ff6e40'];
-    const bw = 22, bh = h - 16, bGap = 32;
-    for (let bi = 0; bi < 5; bi++) {
-      const bx = x + 20 + bi * bGap;
-      if (bx + bw > x + w - 10) break;
-      ctx.fillStyle = bottleColors[bi % 4];
-      ctx.fillRect(bx, y + 4, bw, bh);
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.fillRect(bx + 4, y + 8, 6, bh * 0.4);
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.5;
-      ctx.strokeRect(bx, y + 4, bw, bh);
+    case 'column': {
+      const grad2 = ctx.createLinearGradient(x,0,x+w,0);
+      grad2.addColorStop(0,'#a1887f'); grad2.addColorStop(0.5,color); grad2.addColorStop(1,'#795548');
+      ctx.fillStyle=grad2; ctx.fillRect(x,y,w,h);
+      // Estrías de columna clásica
+      ctx.strokeStyle='rgba(121,85,72,0.5)'; ctx.lineWidth=2;
+      for(let lx=x+10; lx<x+w-5; lx+=10){ ctx.beginPath(); ctx.moveTo(lx,y+22); ctx.lineTo(lx,y+h-22); ctx.stroke(); }
+      // Capitel y basa
+      ctx.fillStyle='#a1887f';
+      ctx.fillRect(x-12,y,w+24,22);
+      ctx.fillRect(x-12,y+h-22,w+24,22);
+      ctx.strokeStyle='#795548'; ctx.lineWidth=3; ctx.strokeRect(x,y,w,h);
+      break;
     }
-    ctx.strokeStyle = '#00695c'; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
+
+    case 'well': {
+      // Base de piedra
+      ctx.fillStyle='#795548';
+      ctx.beginPath(); ctx.ellipse(x+w/2,y+h*0.7,w*0.52,h*0.25,0,0,Math.PI*2); ctx.fill();
+      // Boca del pozo
+      ctx.fillStyle='#6d4c41';
+      ctx.beginPath(); ctx.arc(x+w/2,y+h/2,w*0.48,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#4e342e';
+      ctx.beginPath(); ctx.arc(x+w/2,y+h/2,w*0.36,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#0288d1';
+      ctx.beginPath(); ctx.arc(x+w/2,y+h/2,w*0.26,0,Math.PI*2); ctx.fill();
+      // Brocal de piedra
+      ctx.strokeStyle='#3e2723'; ctx.lineWidth=5;
+      ctx.beginPath(); ctx.arc(x+w/2,y+h/2,w*0.48,0,Math.PI*2); ctx.stroke();
+      // Travesaño
+      ctx.fillStyle='#5d4037'; ctx.fillRect(x+w/2-4,y+5,8,h*0.35);
+      ctx.fillRect(x+w/2-w*0.4,y+h*0.1,w*0.8,10);
+      break;
+    }
+
+    case 'dune': {
+      ctx.fillStyle='#c8a165';
+      ctx.beginPath();
+      ctx.moveTo(x,y+h);
+      ctx.quadraticCurveTo(x+w/2,y-25,x+w,y+h);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#d4b483';
+      ctx.beginPath();
+      ctx.moveTo(x+w*0.12,y+h);
+      ctx.quadraticCurveTo(x+w/2,y+8,x+w*0.88,y+h);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(184,140,64,0.5)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(x,y+h*0.6); ctx.quadraticCurveTo(x+w/2,y+5,x+w,y+h*0.5); ctx.stroke();
+      break;
+    }
+
+    case 'tub': {
+      // Cuerpo exterior
+      ctx.fillStyle='#e0f7fa'; ctx.fillRect(x,y,w,h);
+      // Interior con agua
+      ctx.fillStyle='#b2ebf2'; ctx.fillRect(x+16,y+22,w-32,h-40);
+      ctx.fillStyle='rgba(77,208,225,0.6)'; ctx.fillRect(x+16,y+h-32,w-32,16);
+      // Bordes
+      ctx.fillStyle=color; ctx.fillRect(x,y,w,20); ctx.fillRect(x,y+h-20,w,20);
+      ctx.fillRect(x,y,16,h); ctx.fillRect(x+w-16,y,16,h);
+      // Grifo
+      ctx.fillStyle='#bdbdbd'; ctx.fillRect(x+w/2-12,y-20,24,24);
+      ctx.beginPath(); ctx.arc(x+w/2,y-22,8,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#00838f'; ctx.lineWidth=3; ctx.strokeRect(x,y,w,h);
+      break;
+    }
+
+    case 'basket': {
+      ctx.fillStyle='#80cbc4'; ctx.fillRect(x,y,w,h);
+      // Mimbre tejido
+      ctx.strokeStyle='#00838f'; ctx.lineWidth=1.5;
+      for(let cx2=x+16;cx2<x+w;cx2+=16){ ctx.beginPath(); ctx.moveTo(cx2,y); ctx.lineTo(cx2,y+h); ctx.stroke(); }
+      for(let cy2=y+18;cy2<y+h;cy2+=18){ ctx.beginPath(); ctx.moveTo(x,cy2); ctx.lineTo(x+w,cy2); ctx.stroke(); }
+      // Tapa
+      ctx.fillStyle='#00838f';
+      ctx.fillRect(x-6,y-18,w+12,22);
+      ctx.strokeStyle='#006064'; ctx.lineWidth=3; ctx.strokeRect(x,y,w,h);
+      break;
+    }
+
+    case 'shelf': {
+      ctx.fillStyle='#004d40'; ctx.fillRect(x,y,w,h);
+      ctx.fillStyle='#00695c'; ctx.fillRect(x,y+h-14,w,14);
+      // Frascos de poción
+      const BCS=['#e040fb','#00e5ff','#69f0ae','#ff6e40','#ffea00','#f50057'];
+      const BW2=20, BH2=h-18, GAP=28;
+      let bx=x+16;
+      for(let bi=0;bx+BW2<x+w-10;bi++,bx+=GAP){
+        ctx.fillStyle=BCS[bi%BCS.length];
+        ctx.fillRect(bx,y+4,BW2,BH2);
+        // Brillo
+        ctx.fillStyle='rgba(255,255,255,0.38)';
+        ctx.fillRect(bx+3,y+7,6,BH2*0.38);
+        // Corcho
+        ctx.fillStyle='#8d6e63'; ctx.fillRect(bx+4,y+2,BW2-8,5);
+        ctx.strokeStyle='rgba(0,0,0,0.35)'; ctx.lineWidth=1;
+        ctx.strokeRect(bx,y+4,BW2,BH2);
+      }
+      ctx.strokeStyle='#00695c'; ctx.lineWidth=3; ctx.strokeRect(x,y,w,h);
+      break;
+    }
   }
 
-  // Indicador "HIDE" cuando el jugador está dentro
-  const px = GS.player.x, py = GS.player.y;
-  const inside = px >= x && px <= x+w && py >= y && py <= y+h;
-  if (inside) {
-    const pulse = 0.6 + 0.4 * Math.sin(Date.now() / 200);
-    ctx.strokeStyle = `rgba(255,255,100,${pulse})`;
-    ctx.lineWidth = 4;
-    ctx.strokeRect(x - 4, y - 4, w + 8, h + 8);
-    ctx.fillStyle = `rgba(255,255,100,${pulse * 0.9})`;
-    ctx.font = 'bold 13px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('[ E ] HIDE', x + w/2, y - 10);
+  // Indicador de zona de escondite (pulsa cuando el jugador está dentro)
+  const px=GS.player.x, py=GS.player.y;
+  if (px>=x && px<=x+w && py>=y && py<=y+h) {
+    const pulse = 0.5 + 0.5*Math.sin(Date.now()/190);
+    ctx.strokeStyle=`rgba(255,255,80,${pulse})`;
+    ctx.lineWidth=4;
+    ctx.strokeRect(x-5,y-5,w+10,h+10);
+    ctx.fillStyle=`rgba(255,255,80,${pulse*0.9})`;
+    ctx.font='bold 13px monospace';
+    ctx.textAlign='center';
+    ctx.fillText('HIDING!', x+w/2, y-12);
   }
+
   ctx.restore();
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   §8  VET AI — patrol + chase con cono de visión
+   §8  COUNTDOWN TIMER — 20 segundos, tick via deltaTime
 ═══════════════════════════════════════════════════════════════════ */
-const VET_VISION_RANGE = 340;
-const VET_VISION_ANGLE = 55;  // grados, medio-cono
+function tickTimer(nowMs) {
+  const t = GS.timer;
+  if (!t.running || GS.gameResult || GS.explosion.active) return;
 
-function updateVetAI() {
-  const v = GS.vet, p = GS.player;
-  const dist = Math.hypot(p.x - v.x, p.y - v.y);
+  const delta = nowMs - t.lastMs;
+  t.lastMs = nowMs;
+  t.msAcc += delta;
 
-  // Cono de visión
-  const toPlayer = Math.atan2(p.y - v.y, p.x - v.x) * 180 / Math.PI;
-  let diff = toPlayer - v.angle * 180 / Math.PI;
-  while (diff >  180) diff -= 360;
-  while (diff < -180) diff += 360;
-  const canSee = !p.isHidden && dist < VET_VISION_RANGE && Math.abs(diff) < VET_VISION_ANGLE;
-
-  if (canSee) {
-    v.mode = 'chase';
-    v.lostTimer = 0;
-  } else if (v.mode === 'chase') {
-    v.lostTimer++;
-    if (v.lostTimer > 80) { v.mode = 'patrol'; v.patrolTarget = randomPatrolPoint(); }
+  const secsLost = Math.floor(t.msAcc / 1000);
+  if (secsLost > 0) {
+    t.msAcc -= secsLost * 1000;
+    t.seconds = Math.max(0, t.seconds - secsLost);
   }
 
-  if (v.mode === 'chase') {
-    v.angle = Math.atan2(p.y - v.y, p.x - v.x);
-    v.x += Math.cos(v.angle) * v.speed;
-    v.y += Math.sin(v.angle) * v.speed;
-  } else {
-    // Patrulla
-    v.patrolTimer--;
-    if (!v.patrolTarget || v.patrolTimer <= 0) {
-      v.patrolTarget = randomPatrolPoint();
-      v.patrolTimer = 100 + Math.random() * 80;
-    }
-    const ta = Math.atan2(v.patrolTarget.y - v.y, v.patrolTarget.x - v.x);
-    v.angle = ta;
-    v.x += Math.cos(ta) * v.speed * 0.55;
-    v.y += Math.sin(ta) * v.speed * 0.55;
+  // Tiempo agotado → explosión de derrota
+  if (t.seconds <= 0 && !GS.gameResult) {
+    GS.gameResult = 'TIMEOUT';
+    window.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('keyup',   onKeyUp);
+    stopIgMusic();
+    playLoseJingle();
+    spawnExplosion(GS.player.x, GS.player.y);
+    spawnExplosion(GS.vet.x, GS.vet.y);
   }
-
-  // Limites del mapa
-  v.x = Math.max(40, Math.min(GS.map.width - 40, v.x));
-  v.y = Math.max(40, Math.min(GS.map.height - 40, v.y));
 }
 
-function randomPatrolPoint() {
-  return {
-    x: 100 + Math.random() * (GS.map.width  - 200),
-    y: 100 + Math.random() * (GS.map.height - 200)
-  };
+/* HUD del timer — dibujado en espacio de pantalla (fuera de ctx.save cámara) */
+function renderTimerHUD(ctx, cW) {
+  const t = GS.timer;
+  const isUrgent = t.seconds <= 5;
+  const label = `⏱ ${t.seconds}s`;
+  const pulse = isUrgent ? (0.6 + 0.4 * Math.sin(Date.now() / 180)) : 1;
+
+  ctx.save();
+  ctx.textAlign = 'center';
+
+  // Caja de fondo
+  const boxW = 130, boxH = 38;
+  const bx = cW / 2 - boxW / 2, by = 14;
+  ctx.fillStyle = isUrgent
+    ? `rgba(180,0,0,${0.6 * pulse})`
+    : 'rgba(0,0,0,0.55)';
+  ctx.fillRect(bx, by, boxW, boxH);
+  ctx.strokeStyle = isUrgent ? `rgba(255,50,50,${pulse})` : 'rgba(255,230,0,0.6)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(bx, by, boxW, boxH);
+
+  // Texto
+  ctx.font = `bold ${isUrgent ? 18 : 16}px 'Press Start 2P', monospace`;
+  ctx.fillStyle = isUrgent ? `rgba(255,80,80,${pulse})` : '#ffe600';
+  if (isUrgent) ctx.shadowColor = '#ff2d00';
+  if (isUrgent) ctx.shadowBlur  = 12 * pulse;
+  ctx.fillText(label, cW / 2, by + boxH * 0.68);
+  ctx.shadowBlur = 0;
+  ctx.restore();
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   §9  SISTEMA DE PARTÍCULAS — explosión cinemática de derrota
+   §9  SISTEMA DE PARTÍCULAS KABOOM — explosión cinemática v12
+   Genera 120 fragmentos: píxeles cuadrados + "astillas" de sprite,
+   con screen-shake y flash de pantalla.
 ═══════════════════════════════════════════════════════════════════ */
 function spawnExplosion(cx, cy) {
-  const colors = [
-    GS.char ? GS.char.colors.primary : '#fff',
-    '#ff2d78', '#ffe600', '#00f5ff', '#ff6e40', '#69f0ae', '#e040fb'
-  ];
-  for (let i = 0; i < 80; i++) {
+  const base = GS.char ? GS.char.colors.primary : '#fff';
+  const palette = [base, '#ff2d78', '#ffe600', '#00f5ff', '#ff6e40', '#69f0ae', '#e040fb', '#fff'];
+
+  for (let i = 0; i < 120; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 2 + Math.random() * 8;
-    const size  = 3 + Math.random() * 8;
+    const speed = 1.5 + Math.random() * 10;
     GS.particles.push({
-      x: cx, y: cy,
+      x: cx + (Math.random() - 0.5) * 20,
+      y: cy + (Math.random() - 0.5) * 20,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      size,
-      color: colors[Math.floor(Math.random() * colors.length)],
+      vy: Math.sin(angle) * speed - Math.random() * 3, // impulso hacia arriba
+      size: 3 + Math.random() * 9,
+      color: palette[Math.floor(Math.random() * palette.length)],
       life: 1.0,
-      decay: 0.012 + Math.random() * 0.02,
+      decay: 0.008 + Math.random() * 0.018,
       rotate: Math.random() * Math.PI * 2,
-      rotSpeed: (Math.random() - 0.5) * 0.3
+      rotSpeed: (Math.random() - 0.5) * 0.35,
+      isRect: Math.random() > 0.3   // mezcla de cuadrados y círculos
     });
   }
-  GS.explosion.active  = true;
-  GS.explosion.timer   = 0;
+
+  GS.explosion.active = true;
+  GS.explosion.timer  = 0;
+  GS.explosion.shakeFrames = 18;   // fotogramas de screen-shake
 }
 
 function updateParticles() {
   for (let i = GS.particles.length - 1; i >= 0; i--) {
     const p = GS.particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.15;    // gravedad leve
-    p.vx *= 0.97;    // fricción
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.18;    // gravedad
+    p.vx *= 0.96;
     p.life -= p.decay;
     p.rotate += p.rotSpeed;
     if (p.life <= 0) GS.particles.splice(i, 1);
   }
   if (GS.explosion.active) {
     GS.explosion.timer++;
+    if (GS.explosion.shakeFrames > 0) GS.explosion.shakeFrames--;
     if (GS.explosion.timer >= GS.explosion.duration && GS.particles.length === 0) {
       GS.explosion.active = false;
-      // Ahora sí, mostrar el overlay de game-over
       showResultOverlay(false);
     }
   }
@@ -771,7 +884,13 @@ function renderParticles(ctx) {
     ctx.translate(p.x, p.y);
     ctx.rotate(p.rotate);
     ctx.fillStyle = p.color;
-    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+    if (p.isRect) {
+      ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, p.size * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   });
 }
@@ -780,6 +899,10 @@ function renderParticles(ctx) {
    §10  TOUCH CONTROLS — joystick virtual
 ═══════════════════════════════════════════════════════════════════ */
 function initTouchControls(canvas) {
+  // Limpiar listeners previos para no acumularlos en retry
+  canvas.removeEventListener('touchstart', onTouchStart);
+  canvas.removeEventListener('touchmove',  onTouchMove);
+  canvas.removeEventListener('touchend',   onTouchEnd);
   canvas.addEventListener('touchstart', onTouchStart, { passive: false });
   canvas.addEventListener('touchmove',  onTouchMove,  { passive: false });
   canvas.addEventListener('touchend',   onTouchEnd,   { passive: false });
@@ -800,14 +923,13 @@ function onTouchMove(e) {
   for (let i = 0; i < e.changedTouches.length; i++) {
     const touch = e.changedTouches[i];
     if (touch.identifier !== GS.touch.id) continue;
-    const rawDx = touch.clientX - GS.touch.startX;
-    const rawDy = touch.clientY - GS.touch.startY;
-    const len = Math.hypot(rawDx, rawDy) || 1;
-    const deadzone = 8;
-    if (len < deadzone) { GS.touch.dx = 0; GS.touch.dy = 0; return; }
-    const clamped = Math.min(len, 60);
-    GS.touch.dx = (rawDx / len) * (clamped / 60);
-    GS.touch.dy = (rawDy / len) * (clamped / 60);
+    const rdx = touch.clientX - GS.touch.startX;
+    const rdy = touch.clientY - GS.touch.startY;
+    const len = Math.hypot(rdx, rdy) || 1;
+    if (len < 8) { GS.touch.dx = 0; GS.touch.dy = 0; return; }
+    const cl = Math.min(len, 60);
+    GS.touch.dx = (rdx/len)*(cl/60);
+    GS.touch.dy = (rdy/len)*(cl/60);
   }
 }
 
@@ -821,338 +943,336 @@ function onTouchEnd(e) {
   }
 }
 
-/* Dibuja el joystick visual en pantalla (esquina inferior izquierda del canvas visible) */
-function renderJoystick(ctx, canvasW, canvasH) {
+function renderJoystick(ctx, cW, cH) {
   if (!GS.touch.active && GS.touch.dx === 0 && GS.touch.dy === 0) return;
-  const jx = 90, jy = canvasH - 90;
-  const outerR = 52, innerR = 22;
+  const jx=90, jy=cH-90, OR=52, IR=22;
   ctx.save();
-  ctx.globalAlpha = 0.45;
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(jx, jy, outerR, 0, Math.PI*2); ctx.stroke();
-  ctx.globalAlpha = 0.65;
-  ctx.fillStyle = '#ffe600';
+  ctx.globalAlpha=0.42;
+  ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(jx,jy,OR,0,Math.PI*2); ctx.stroke();
+  ctx.globalAlpha=0.68;
+  ctx.fillStyle='#ffe600';
   ctx.beginPath();
-  ctx.arc(jx + GS.touch.dx * outerR, jy + GS.touch.dy * outerR, innerR, 0, Math.PI*2);
+  ctx.arc(jx+GS.touch.dx*OR, jy+GS.touch.dy*OR, IR, 0, Math.PI*2);
   ctx.fill();
   ctx.restore();
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   §11  CORE GAMEPLAY
+   §11  VET AI — patrol + chase con cono de visión
+═══════════════════════════════════════════════════════════════════ */
+const VET_VISION_RANGE = 340;
+const VET_VISION_ANGLE = 55;
+
+function updateVetAI() {
+  const v=GS.vet, p=GS.player;
+  const dist=Math.hypot(p.x-v.x, p.y-v.y);
+  const toPlayer=Math.atan2(p.y-v.y, p.x-v.x)*180/Math.PI;
+  let diff=toPlayer-v.angle*180/Math.PI;
+  while(diff>180)diff-=360; while(diff<-180)diff+=360;
+  const canSee=!p.isHidden && dist<VET_VISION_RANGE && Math.abs(diff)<VET_VISION_ANGLE;
+
+  if (canSee) { v.mode='chase'; v.lostTimer=0; }
+  else if (v.mode==='chase') {
+    v.lostTimer++;
+    if (v.lostTimer>80){ v.mode='patrol'; v.patrolTarget=rndPatrol(); }
+  }
+
+  if (v.mode==='chase') {
+    v.angle=Math.atan2(p.y-v.y, p.x-v.x);
+    v.x+=Math.cos(v.angle)*v.speed;
+    v.y+=Math.sin(v.angle)*v.speed;
+  } else {
+    v.patrolTimer--;
+    if (!v.patrolTarget||v.patrolTimer<=0){ v.patrolTarget=rndPatrol(); v.patrolTimer=110+Math.random()*70; }
+    const ta=Math.atan2(v.patrolTarget.y-v.y, v.patrolTarget.x-v.x);
+    v.angle=ta;
+    v.x+=Math.cos(ta)*v.speed*0.55;
+    v.y+=Math.sin(ta)*v.speed*0.55;
+  }
+  v.x=Math.max(40,Math.min(GS.map.width-40,v.x));
+  v.y=Math.max(40,Math.min(GS.map.height-40,v.y));
+}
+function rndPatrol(){ return { x:100+Math.random()*(GS.map.width-200), y:100+Math.random()*(GS.map.height-200) }; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   §12  CORE GAMEPLAY — updateGame + renderGame + gameLoop
 ═══════════════════════════════════════════════════════════════════ */
 function startGameplay() {
   setupGameMap();
-  const hudName = document.getElementById('hudCharName');
-  if (hudName) {
-    hudName.textContent = GS.char.name;
-    hudName.style.color = GS.char.colors.primary;
-  }
-  GS.keys = {};
-
-  // ── FIX: remover antes de añadir ──
-  window.removeEventListener('keydown', onKeyDown);
-  window.removeEventListener('keyup',   onKeyUp);
-  window.addEventListener('keydown', onKeyDown);
-  window.addEventListener('keyup',   onKeyUp);
-
-  const canvas = document.getElementById('gameCanvas');
-  if (canvas) {
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
-    initTouchControls(canvas);
-  }
-
-  // Track energético al iniciar
+  const hudName=document.getElementById('hudCharName');
+  if (hudName){ hudName.textContent=GS.char.name; hudName.style.color=GS.char.colors.primary; }
+  GS.keys={};
+  window.removeEventListener('keydown',onKeyDown);
+  window.removeEventListener('keyup',  onKeyUp);
+  window.addEventListener('keydown',   onKeyDown);
+  window.addEventListener('keyup',     onKeyUp);
+  const canvas=document.getElementById('gameCanvas');
+  if (canvas){ canvas.width=window.innerWidth; canvas.height=window.innerHeight; initTouchControls(canvas); }
   startInGameMusic();
-
   if (GS.gameLoopId) cancelAnimationFrame(GS.gameLoopId);
-  GS.gameLoopId = requestAnimationFrame(gameLoop);
+  GS.gameLoopId=requestAnimationFrame(gameLoop);
 }
 
-function onKeyDown(e) {
-  GS.keys[e.key.toLowerCase()] = true;
-  // ── FIX: 'Escape' mayúscula ──
-  if (e.key === 'Escape') togglePause();
+function onKeyDown(e){
+  GS.keys[e.key.toLowerCase()]=true;
+  if (e.key==='Escape') togglePause();
 }
-function onKeyUp(e) {
-  GS.keys[e.key.toLowerCase()] = false;
-}
+function onKeyUp(e){ GS.keys[e.key.toLowerCase()]=false; }
 
 window.addEventListener('click',      ensureAudio);
-window.addEventListener('touchstart', ensureAudio, { once: true });
+window.addEventListener('touchstart', ensureAudio, { once:true });
 
-function togglePause() {
-  GS.isPaused = !GS.isPaused;
-  const btn = document.getElementById('btnPause');
-  if (btn) btn.textContent = GS.isPaused ? '▶ RESUME' : '⏸ PAUSE';
+function togglePause(){
+  GS.isPaused=!GS.isPaused;
+  const btn=document.getElementById('btnPause');
+  if(btn) btn.textContent=GS.isPaused?'▶ RESUME':'⏸ PAUSE';
 }
 
-function updateGame() {
+function updateGame(nowMs) {
   if (GS.isPaused) return;
-  if (GS.explosion.active) { updateParticles(); return; }  // sólo partículas durante explosión
+  if (GS.explosion.active){ updateParticles(); return; }
   if (GS.gameResult) return;
 
-  const p = GS.player;
-  const speed = GS.char.speed * (GS.keys['shift'] ? GS.char.sprintMul : 1);
+  // Arrancar timer en el primer frame de juego real
+  if (!GS.timer.running){ GS.timer.running=true; GS.timer.lastMs=nowMs; }
+  tickTimer(nowMs);
+  if (GS.gameResult) return; // TIMEOUT puede setear gameResult en tickTimer
 
-  // Movimiento teclado + touch combinados
-  let dx = 0, dy = 0;
-  if (GS.keys['w'] || GS.keys['arrowup'])    dy = -1;
-  if (GS.keys['s'] || GS.keys['arrowdown'])  dy =  1;
-  if (GS.keys['a'] || GS.keys['arrowleft'])  dx = -1;
-  if (GS.keys['d'] || GS.keys['arrowright']) dx =  1;
-  if (GS.touch.active) { dx += GS.touch.dx; dy += GS.touch.dy; }
-  const len = Math.hypot(dx, dy);
-  if (len > 1) { dx /= len; dy /= len; }
+  const p=GS.player;
+  const speed=GS.char.speed*(GS.keys['shift']?GS.char.sprintMul:1);
 
-  p.x += dx * speed;
-  p.y += dy * speed;
-  p.x = Math.max(40, Math.min(GS.map.width - 40, p.x));
-  p.y = Math.max(40, Math.min(GS.map.height - 40, p.y));
+  let dx=0,dy=0;
+  if(GS.keys['w']||GS.keys['arrowup'])    dy=-1;
+  if(GS.keys['s']||GS.keys['arrowdown'])  dy= 1;
+  if(GS.keys['a']||GS.keys['arrowleft'])  dx=-1;
+  if(GS.keys['d']||GS.keys['arrowright']) dx= 1;
+  if(GS.touch.active){ dx+=GS.touch.dx; dy+=GS.touch.dy; }
+  const mv=Math.hypot(dx,dy);
+  if(mv>1){dx/=mv;dy/=mv;}
+  p.x+=dx*speed; p.y+=dy*speed;
+  p.x=Math.max(40,Math.min(GS.map.width-40,p.x));
+  p.y=Math.max(40,Math.min(GS.map.height-40,p.y));
 
-  // Colisión AABB con objetos de escondite
-  let nearSpot = false;
-  GS.hidingObjects.forEach(obj => {
-    if (p.x >= obj.x && p.x <= obj.x + obj.w &&
-        p.y >= obj.y && p.y <= obj.y + obj.h) {
-      nearSpot = true;
-    }
+  // Escondite AABB — automático al entrar (sin tecla E en móvil)
+  let inSpot=false;
+  GS.hidingObjects.forEach(obj=>{
+    if(p.x>=obj.x&&p.x<=obj.x+obj.w&&p.y>=obj.y&&p.y<=obj.y+obj.h) inSpot=true;
   });
-  // E para esconderse cuando está dentro del objeto
-  GS.player.isHidden = nearSpot && GS.keys['e'];
+  // En desktop: E requerida para esconderse; en touch: automático
+  GS.player.isHidden = inSpot && (GS.touch.active || GS.keys['e']);
 
-  // Proximidad
-  const dist = Math.hypot(p.x - GS.vet.x, p.y - GS.vet.y);
-  GS.proximity = Math.max(0, Math.min(1, 1 - dist / 700));
-
-  // Vet AI
+  const dist=Math.hypot(p.x-GS.vet.x, p.y-GS.vet.y);
+  GS.proximity=Math.max(0,Math.min(1,1-dist/700));
   updateVetAI();
 
   // WIN
-  if (Math.hypot(p.x - GS.goal.x, p.y - GS.goal.y) < GS.goal.radius + 10) {
-    GS.gameResult = 'WIN';
-    window.removeEventListener('keydown', onKeyDown);
-    window.removeEventListener('keyup',   onKeyUp);
-    stopIgMusic();
-    playWinJingle();
-    setTimeout(() => showResultOverlay(true), 300);
+  if(Math.hypot(p.x-GS.goal.x,p.y-GS.goal.y)<GS.goal.radius+10){
+    GS.gameResult='WIN';
+    GS.timer.running=false;
+    window.removeEventListener('keydown',onKeyDown);
+    window.removeEventListener('keyup',  onKeyUp);
+    stopIgMusic(); playWinJingle();
+    setTimeout(()=>showResultOverlay(true),300);
   }
 
-  // LOSE — detonamos explosión, NO llamamos alert()
-  if (dist < 45 && !GS.player.isHidden && !GS.gameResult) {
-    GS.gameResult = 'LOSE';
-    window.removeEventListener('keydown', onKeyDown);
-    window.removeEventListener('keyup',   onKeyUp);
-    stopIgMusic();
-    playLoseJingle();
-    spawnExplosion(p.x, p.y);
-    spawnExplosion(GS.vet.x, GS.vet.y);
+  // LOSE por captura
+  if(dist<45&&!GS.player.isHidden&&!GS.gameResult){
+    GS.gameResult='LOSE';
+    GS.timer.running=false;
+    window.removeEventListener('keydown',onKeyDown);
+    window.removeEventListener('keyup',  onKeyUp);
+    stopIgMusic(); playLoseJingle();
+    spawnExplosion(p.x,p.y);
+    spawnExplosion(GS.vet.x,GS.vet.y);
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   §12  RENDER LOOP
-═══════════════════════════════════════════════════════════════════ */
 function renderGame() {
-  const canvas = document.getElementById('gameCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
+  const canvas=document.getElementById('gameCanvas');
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  if(canvas.width!==window.innerWidth)  canvas.width=window.innerWidth;
+  if(canvas.height!==window.innerHeight)canvas.height=window.innerHeight;
+  const cW=canvas.width, cH=canvas.height;
 
-  if (canvas.width  !== window.innerWidth)  canvas.width  = window.innerWidth;
-  if (canvas.height !== window.innerHeight) canvas.height = window.innerHeight;
+  // Screen-shake durante la explosión
+  let shakeX=0, shakeY=0;
+  if(GS.explosion.shakeFrames>0){
+    const mag=GS.explosion.shakeFrames*0.8;
+    shakeX=(Math.random()-0.5)*mag;
+    shakeY=(Math.random()-0.5)*mag;
+  }
 
-  const cW = canvas.width, cH = canvas.height;
-  ctx.fillStyle = '#0a0d1a'; ctx.fillRect(0, 0, cW, cH);
+  ctx.fillStyle='#0a0d1a'; ctx.fillRect(0,0,cW,cH);
 
-  // Cámara centrada en el jugador
+  // Flash de pantalla en los primeros frames de la explosión
+  if(GS.explosion.active&&GS.explosion.timer<8){
+    const fAlpha=(8-GS.explosion.timer)/8*0.55;
+    ctx.fillStyle=`rgba(255,255,255,${fAlpha})`;
+    ctx.fillRect(0,0,cW,cH);
+  }
+
+  // Cámara
   ctx.save();
-  ctx.translate(cW / 2 - GS.player.x, cH / 2 - GS.player.y);
+  ctx.translate(cW/2-GS.player.x+shakeX, cH/2-GS.player.y+shakeY);
 
-  // Fondo temático
   renderBackground(ctx);
 
-  // Borde del mapa
-  ctx.strokeStyle = GS.char.colors.primary; ctx.lineWidth = 5;
-  ctx.strokeRect(0, 0, GS.map.width, GS.map.height);
+  ctx.strokeStyle=GS.char.colors.primary; ctx.lineWidth=5;
+  ctx.strokeRect(0,0,GS.map.width,GS.map.height);
 
-  // Objetos de escondite
-  GS.hidingObjects.forEach(obj => renderHidingObject(ctx, obj));
+  GS.hidingObjects.forEach(obj=>renderHidingObject(ctx,obj));
 
-  // Meta
-  const pulse = 0.7 + 0.3 * Math.sin(Date.now() / 350);
-  ctx.fillStyle = `rgba(255,230,0,${pulse})`;
-  ctx.beginPath(); ctx.arc(GS.goal.x, GS.goal.y, GS.goal.radius, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#000'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('META', GS.goal.x, GS.goal.y + 5);
+  // META con animación de pulso
+  const pulse2=0.6+0.4*Math.sin(Date.now()/300);
+  const g2=ctx.createRadialGradient(GS.goal.x,GS.goal.y,5,GS.goal.x,GS.goal.y,GS.goal.radius);
+  g2.addColorStop(0,`rgba(255,255,0,${pulse2})`);
+  g2.addColorStop(1,'rgba(255,200,0,0.2)');
+  ctx.fillStyle=g2;
+  ctx.beginPath(); ctx.arc(GS.goal.x,GS.goal.y,GS.goal.radius,0,Math.PI*2); ctx.fill();
+  // Aro exterior pulsante
+  ctx.strokeStyle=`rgba(255,230,0,${pulse2*0.8})`; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(GS.goal.x,GS.goal.y,GS.goal.radius+8+pulse2*5,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle='#000'; ctx.font='bold 13px monospace'; ctx.textAlign='center';
+  ctx.fillText('EXIT!',GS.goal.x,GS.goal.y+5);
 
-  // Cono de visión de la vet
-  if (!GS.player.isHidden) {
+  // Cono de visión
+  if(!GS.player.isHidden){
     ctx.save();
-    ctx.translate(GS.vet.x, GS.vet.y);
-    ctx.rotate(GS.vet.angle);
-    const alpha = GS.vet.mode === 'chase' ? 0.20 : 0.07;
-    ctx.fillStyle = `rgba(255,45,120,${alpha})`;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    const halfA = VET_VISION_ANGLE * Math.PI / 180;
-    ctx.arc(0, 0, VET_VISION_RANGE, -halfA, halfA);
+    ctx.translate(GS.vet.x,GS.vet.y); ctx.rotate(GS.vet.angle);
+    ctx.fillStyle=`rgba(255,45,120,${GS.vet.mode==='chase'?0.22:0.07})`;
+    ctx.beginPath(); ctx.moveTo(0,0);
+    const hA=VET_VISION_ANGLE*Math.PI/180;
+    ctx.arc(0,0,VET_VISION_RANGE,-hA,hA);
     ctx.closePath(); ctx.fill();
     ctx.restore();
   }
 
   // Jugador
-  if (!GS.explosion.active || GS.gameResult !== 'LOSE') {
-    ctx.save(); ctx.translate(GS.player.x, GS.player.y);
-    if (GS.player.isHidden) ctx.globalAlpha = 0.3;
-    const pImg = GS.images[GS.char.id];
-    if (pImg && pImg.complete && pImg.naturalWidth !== 0) {
-      ctx.drawImage(pImg, -30, -30, 60, 60);
-    } else {
-      ctx.fillStyle = GS.char.colors.primary; ctx.fillRect(-25, -25, 50, 50);
-    }
+  if(!GS.explosion.active||GS.gameResult!=='LOSE'){
+    ctx.save(); ctx.translate(GS.player.x,GS.player.y);
+    if(GS.player.isHidden) ctx.globalAlpha=0.3;
+    const pImg=GS.images[GS.char.id];
+    if(pImg&&pImg.complete&&pImg.naturalWidth!==0){ ctx.drawImage(pImg,-30,-30,60,60); }
+    else { ctx.fillStyle=GS.char.colors.primary; ctx.fillRect(-25,-25,50,50); }
     ctx.restore();
   }
 
   // Vet
-  if (!GS.explosion.active || GS.gameResult !== 'LOSE') {
-    ctx.save(); ctx.translate(GS.vet.x, GS.vet.y);
-    const vImg = GS.images['vet'];
-    if (vImg && vImg.complete && vImg.naturalWidth !== 0) {
-      ctx.drawImage(vImg, -30, -40, 60, 80);
-    } else {
-      ctx.fillStyle = '#ff2d78'; ctx.fillRect(-25, -25, 50, 50);
-    }
+  if(!GS.explosion.active||GS.gameResult!=='LOSE'){
+    ctx.save(); ctx.translate(GS.vet.x,GS.vet.y);
+    const vImg=GS.images['vet'];
+    if(vImg&&vImg.complete&&vImg.naturalWidth!==0){ ctx.drawImage(vImg,-30,-40,60,80); }
+    else { ctx.fillStyle='#ff2d78'; ctx.fillRect(-25,-25,50,50); }
     ctx.restore();
   }
 
-  // Partículas (en espacio del mapa)
-  if (GS.particles.length > 0) renderParticles(ctx);
+  if(GS.particles.length>0) renderParticles(ctx);
+  ctx.restore(); // fin cámara
 
-  ctx.restore(); // fin transformación de cámara
-
-  // Joystick (en espacio de pantalla)
-  renderJoystick(ctx, cW, cH);
+  // Joystick (pantalla)
+  renderJoystick(ctx,cW,cH);
 
   // Alerta de persecución
-  if (GS.vet.mode === 'chase' && !GS.player.isHidden) {
+  if(GS.vet.mode==='chase'&&!GS.player.isHidden&&!GS.gameResult){
     ctx.save();
-    const fAlpha = 0.55 + 0.45 * Math.sin(Date.now() / 120);
-    ctx.fillStyle = `rgba(255,45,120,${fAlpha * 0.08})`;
-    ctx.fillRect(0, 0, cW, cH);
-    ctx.fillStyle = `rgba(255,45,120,${fAlpha})`;
-    ctx.font = `bold ${Math.max(14, cW * 0.025)}px 'Press Start 2P', monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText('⚠ SHE SEES YOU ⚠', cW / 2, cH * 0.07);
+    const fA=0.5+0.5*Math.sin(Date.now()/110);
+    ctx.fillStyle=`rgba(255,45,120,${fA*0.07})`; ctx.fillRect(0,0,cW,cH);
+    ctx.fillStyle=`rgba(255,45,120,${fA})`;
+    ctx.font=`bold ${Math.max(13,cW*0.024)}px 'Press Start 2P',monospace`;
+    ctx.textAlign='center';
+    ctx.fillText('⚠ SHE SEES YOU ⚠',cW/2,cH*0.07);
     ctx.restore();
   }
 
-  // HUD
-  document.getElementById('hudProxFill').style.width = (GS.proximity * 100) + '%';
-  document.getElementById('hudStatus').textContent  =
-    GS.player.isHidden ? '🙈 HIDING!'
-    : GS.vet.mode === 'chase' ? '⚠ RUN!'
-    : 'EVADING...';
+  // Timer HUD (siempre visible en pantalla)
+  renderTimerHUD(ctx, cW);
+
+  // HUD DOM
+  document.getElementById('hudProxFill').style.width=(GS.proximity*100)+'%';
+  document.getElementById('hudStatus').textContent=
+    GS.player.isHidden?'🙈 HIDING!':GS.vet.mode==='chase'?'⚠ RUN!':'EVADING...';
 }
 
-function gameLoop() {
-  updateGame();
+function gameLoop(nowMs) {
+  updateGame(nowMs);
   renderGame();
-  if (GS.screen === 'game') GS.gameLoopId = requestAnimationFrame(gameLoop);
+  if(GS.screen==='game') GS.gameLoopId=requestAnimationFrame(gameLoop);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   §13  OVERLAY DE RESULTADO — sin alert(), sin changeScreen abrupto
+   §13  OVERLAY DE RESULTADO — sin alert()
 ═══════════════════════════════════════════════════════════════════ */
 function showResultOverlay(won) {
-  // Quitar overlay anterior si existe
-  const old = document.getElementById('resultOverlay');
-  if (old) old.remove();
+  const old=document.getElementById('resultOverlay');
+  if(old) old.remove();
 
-  const c     = GS.char;
-  const color = won ? (c?.colors.primary || '#00f5ff') : '#ff2d78';
-  const emoji = won ? '🎉' : '😿';
-  const title = won ? 'YOU ESCAPED!' : 'THE VET GOT YOU!';
-  const sub   = won
-    ? `${c?.name} earned ${c?.reward}!`
-    : `${c?.name || 'Your pet'} was caught!`;
+  const c=GS.char;
+  const isTimeout=GS.gameResult==='TIMEOUT';
+  const color=won?(c?.colors.primary||'#00f5ff'):'#ff2d78';
+  const emoji=won?'🎉':'😿';
+  const title=won?'YOU ESCAPED!':(isTimeout?'TIME IS UP!':'THE VET GOT YOU!');
+  const timeSaved=won?GS.timer.seconds:0;
+  const sub=won
+    ?`${c?.name} earned ${c?.reward}! (${timeSaved}s left)`
+    :`${c?.name||'Your pet'} ${isTimeout?'ran out of time':'was caught'}!`;
 
-  const ov = document.createElement('div');
-  ov.id = 'resultOverlay';
-  Object.assign(ov.style, {
-    position: 'fixed', inset: '0', zIndex: '9999',
-    display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center',
-    background: 'rgba(4,6,14,0.92)',
-    fontFamily: "'Press Start 2P', monospace",
-    textAlign: 'center', padding: '2rem', boxSizing: 'border-box'
+  const ov=document.createElement('div');
+  ov.id='resultOverlay';
+  Object.assign(ov.style,{
+    position:'fixed',inset:'0',zIndex:'9999',
+    display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+    background:'rgba(4,6,14,0.93)',
+    fontFamily:"'Press Start 2P',monospace",
+    textAlign:'center',padding:'2rem',boxSizing:'border-box'
   });
 
-  const mkEl = (tag, styles, text) => {
-    const el = document.createElement(tag);
-    Object.assign(el.style, styles);
-    if (text) el.textContent = text;
-    return el;
-  };
-
-  const mkBtn = (label, accent, onClick) => {
-    const btn = mkEl('button', {
-      fontFamily: "'Press Start 2P', monospace",
-      fontSize: 'clamp(0.4rem,1.3vw,0.65rem)',
-      cursor: 'pointer', padding: '0.8em 1.8em',
-      border: `3px solid ${accent}`, background: 'transparent',
-      color: accent, letterSpacing: '0.1em', textTransform: 'uppercase',
-      margin: '0 8px'
-    }, label);
-    btn.addEventListener('mouseover', () => { btn.style.background = `${accent}22`; });
-    btn.addEventListener('mouseout',  () => { btn.style.background = 'transparent'; });
-    btn.addEventListener('click', onClick);
+  const mk=(tag,styles,text)=>{ const el=document.createElement(tag); Object.assign(el.style,styles); if(text)el.textContent=text; return el; };
+  const mkBtn=(label,accent,cb)=>{
+    const btn=mk('button',{
+      fontFamily:"'Press Start 2P',monospace",fontSize:'clamp(0.4rem,1.3vw,0.65rem)',
+      cursor:'pointer',padding:'0.8em 1.8em',border:`3px solid ${accent}`,background:'transparent',
+      color:accent,letterSpacing:'0.1em',textTransform:'uppercase',margin:'0 8px'
+    },label);
+    btn.addEventListener('mouseover',()=>{ btn.style.background=`${accent}22`; });
+    btn.addEventListener('mouseout', ()=>{ btn.style.background='transparent'; });
+    btn.addEventListener('click',cb);
     return btn;
   };
 
-  ov.appendChild(mkEl('div', { fontSize: 'clamp(2.5rem,8vw,5rem)', marginBottom: '1rem' }, emoji));
-  ov.appendChild(mkEl('div', {
-    fontSize: 'clamp(1rem,3.5vw,2.2rem)', color, marginBottom: '0.8rem',
-    textShadow: `0 0 14px ${color}, 3px 3px 0 rgba(0,0,0,0.8)`, letterSpacing: '0.12em'
-  }, title));
-  ov.appendChild(mkEl('div', {
-    fontSize: 'clamp(0.4rem,1.4vw,0.8rem)', color: '#e0e0cc',
-    lineHeight: '2', marginBottom: '2rem', letterSpacing: '0.06em'
-  }, sub));
+  ov.appendChild(mk('div',{fontSize:'clamp(2.5rem,8vw,5rem)',marginBottom:'1rem'},emoji));
+  ov.appendChild(mk('div',{
+    fontSize:'clamp(0.9rem,3vw,2rem)',color,marginBottom:'0.8rem',
+    textShadow:`0 0 14px ${color},3px 3px 0 rgba(0,0,0,0.8)`,letterSpacing:'0.12em'
+  },title));
+  ov.appendChild(mk('div',{
+    fontSize:'clamp(0.35rem,1.2vw,0.75rem)',color:'#e0e0cc',
+    lineHeight:'2',marginBottom:'2rem',letterSpacing:'0.06em'
+  },sub));
 
-  const row = mkEl('div', { display: 'flex', justifyContent: 'center', flexWrap: 'wrap' });
-  row.appendChild(mkBtn('↩ RETRY', color, () => {
-    ov.remove();
-    ensureAudio();
-    changeScreen('game');
-  }));
-  row.appendChild(mkBtn('⌂ MENU', '#6a7a9a', () => {
-    ov.remove();
-    changeScreen('mainmenu');
-  }));
+  const row=mk('div',{display:'flex',justifyContent:'center',flexWrap:'wrap'});
+  row.appendChild(mkBtn('↩ RETRY',color,()=>{ ov.remove(); ensureAudio(); changeScreen('game'); }));
+  row.appendChild(mkBtn('⌂ MENU','#6a7a9a',()=>{ ov.remove(); changeScreen('mainmenu'); }));
   ov.appendChild(row);
 
-  const gameScreen = document.getElementById('screen-game');
-  if (gameScreen) {
-    gameScreen.style.position = 'relative';
-    gameScreen.appendChild(ov);
-  } else {
-    document.body.appendChild(ov);
-  }
+  const gs=document.getElementById('screen-game');
+  if(gs){ gs.style.position='relative'; gs.appendChild(ov); }
+  else   document.body.appendChild(ov);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   §14  EVENTOS DE BOTONES
+   §14  BOTONES
 ═══════════════════════════════════════════════════════════════════ */
 function bindButtons() {
-  const $ = id => document.getElementById(id);
-  $('btnStartGame') ?.addEventListener('click', () => { ensureAudio(); changeScreen('charselect'); });
-  $('btnHowTo')     ?.addEventListener('click', () => { ensureAudio(); changeScreen('howtoplay'); });
-  $('btnHowToBack') ?.addEventListener('click', () => changeScreen('mainmenu'));
-  $('btnCSBack')    ?.addEventListener('click', () => changeScreen('mainmenu'));
-  $('btnConfirmYes')?.addEventListener('click', () => changeScreen('game'));
-  $('btnConfirmNo') ?.addEventListener('click', () => changeScreen('charselect'));
-  $('btnPause')     ?.addEventListener('click', () => togglePause());
+  const $=id=>document.getElementById(id);
+  $('btnStartGame') ?.addEventListener('click',()=>{ ensureAudio(); changeScreen('charselect'); });
+  $('btnHowTo')     ?.addEventListener('click',()=>{ ensureAudio(); changeScreen('howtoplay'); });
+  $('btnHowToBack') ?.addEventListener('click',()=> changeScreen('mainmenu'));
+  $('btnCSBack')    ?.addEventListener('click',()=> changeScreen('mainmenu'));
+  $('btnConfirmYes')?.addEventListener('click',()=> changeScreen('game'));
+  $('btnConfirmNo') ?.addEventListener('click',()=> changeScreen('charselect'));
+  $('btnPause')     ?.addEventListener('click',()=> togglePause());
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1163,10 +1283,10 @@ async function init() {
   bindCharCards();
   setLoadBar(0);
   await preloadImages();
-  window.addEventListener('resize', () => {
-    const c = document.getElementById('gameCanvas');
-    if (c && GS.screen === 'game') { c.width = window.innerWidth; c.height = window.innerHeight; }
+  window.addEventListener('resize',()=>{
+    const c=document.getElementById('gameCanvas');
+    if(c&&GS.screen==='game'){ c.width=window.innerWidth; c.height=window.innerHeight; }
   });
-  setTimeout(() => { changeScreen('mainmenu'); }, 100);
+  setTimeout(()=>changeScreen('mainmenu'),100);
 }
-window.addEventListener('DOMContentLoaded', init);
+window.addEventListener('DOMContentLoaded',init);

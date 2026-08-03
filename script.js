@@ -443,18 +443,429 @@ function changeScreen(screenId) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   §5  SELECCIÓN DE PERSONAJE
+   §5  SELECCIÓN DE PERSONAJE + CARTA TIPO PvZ
 ═══════════════════════════════════════════════════════════════════ */
+
+/**
+ * Datos extendidos por personaje para la carta:
+ * stats (0-100) y array de weaknesses.
+ * Se mantiene separado de CHARACTERS para no violar la regla de preservación.
+ */
+const CHAR_CARD_DATA = {
+  molly:  {
+    num: '01',
+    stats: [
+      { icon:'⚡', label:'SPEED',   val: 78 },
+      { icon:'🙈', label:'STEALTH', val: 55 },
+      { icon:'💨', label:'SPRINT',  val: 88 },
+      { icon:'🐾', label:'AGILITY', val: 70 },
+    ],
+    strengths: ['FAST SPRINTER','HIGH STAMINA'],
+    weaknesses: ['LOUD PAWS','LOW STEALTH','LOVES CLOTHES'],
+    accentH: '280',   // hue del halo HSL
+  },
+  agata: {
+    num: '02',
+    stats: [
+      { icon:'⚡', label:'SPEED',   val: 82 },
+      { icon:'🙈', label:'STEALTH', val: 90 },
+      { icon:'💨', label:'SPRINT',  val: 72 },
+      { icon:'🐾', label:'AGILITY', val: 85 },
+    ],
+    strengths: ['MAX STEALTH','AGILE CLIMBER'],
+    weaknesses: ['NAIL CLIPPER FEAR','FREEZES IN OPEN'],
+    accentH: '140',
+  },
+  martin: {
+    num: '03',
+    stats: [
+      { icon:'⚡', label:'SPEED',   val: 65 },
+      { icon:'🙈', label:'STEALTH', val: 72 },
+      { icon:'💨', label:'SPRINT',  val: 95 },
+      { icon:'🐾', label:'AGILITY', val: 60 },
+    ],
+    strengths: ['BURST SPRINT','DESERT BORN'],
+    weaknesses: ['DEHYDRATES FAST','SLOW BASE SPEED'],
+    accentH: '32',
+  },
+  michi: {
+    num: '04',
+    stats: [
+      { icon:'⚡', label:'SPEED',   val: 92 },
+      { icon:'🙈', label:'STEALTH', val: 80 },
+      { icon:'💨', label:'SPRINT',  val: 68 },
+      { icon:'🐾', label:'AGILITY', val: 95 },
+    ],
+    strengths: ['TOP SPEED','HYPER AGILE'],
+    weaknesses: ['HATES WATER','SOAP PHOBIA'],
+    accentH: '200',
+  },
+};
+
+/**
+ * showCharacterCard(charId)
+ * Muestra la carta estilo Plants vs. Zombies durante 2.8 s
+ * con halo de luz, stats, fortalezas y debilidades.
+ * Usa la imagen ya cargada en GS.images[charId].
+ * Al completarse llama a changeScreen('confirm').
+ */
+function showCharacterCard(charId) {
+  const data   = CHARACTERS[charId];
+  const extra  = CHAR_CARD_DATA[charId];
+  if (!data || !extra) { changeScreen('confirm'); return; }
+
+  // Eliminar carta previa si hubiera
+  const existing = document.getElementById('charCardOverlay');
+  if (existing) existing.remove();
+
+  const H      = extra.accentH;                    // hue para el color del personaje
+  const col    = `hsl(${H},80%,70%)`;              // color de acento
+  const colDim = `hsla(${H},70%,55%,0.5)`;
+  const colBg  = `hsla(${H},80%,8%,0.92)`;
+  const colBorder = `hsla(${H},80%,65%,0.75)`;
+
+  /* ── Overlay de pantalla completa ── */
+  const overlay = document.createElement('div');
+  overlay.id = 'charCardOverlay';
+  Object.assign(overlay.style, {
+    position:        'fixed',
+    inset:           '0',
+    zIndex:          '10000',
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+    background:      'rgba(4,6,14,0.88)',
+    fontFamily:      "'Press Start 2P', monospace",
+    animation:       'ccFadeIn 0.35s ease-out both',
+  });
+
+  /* ── Halo de luz detrás de la carta ── */
+  const halo = document.createElement('div');
+  Object.assign(halo.style, {
+    position:   'absolute',
+    width:       '340px',
+    height:      '480px',
+    borderRadius:'50%',
+    background:  `radial-gradient(ellipse at 50% 55%,
+                    hsla(${H},80%,55%,0.50) 0%,
+                    hsla(${H},70%,45%,0.18) 45%,
+                    transparent 72%)`,
+    animation:   'ccPulse 2.2s ease-in-out infinite',
+    pointerEvents:'none',
+  });
+
+  /* ── Carta principal ── */
+  const card = document.createElement('div');
+  Object.assign(card.style, {
+    position:     'relative',
+    width:        '230px',
+    background:   `linear-gradient(165deg,
+                    hsla(${H},60%,6%,1) 0%,
+                    hsla(${H},55%,14%,1) 42%,
+                    hsla(${H},60%,6%,1) 100%)`,
+    border:       `2px solid ${colBorder}`,
+    borderRadius: '14px',
+    boxShadow:    `0 0 32px hsla(${H},80%,55%,0.45),
+                   0 0 70px hsla(${H},80%,45%,0.15),
+                   inset 0 1px 0 rgba(255,255,255,0.10)`,
+    overflow:     'hidden',
+    animation:    'ccFloat 3s ease-in-out infinite, ccSlideUp 0.4s ease-out both',
+    zIndex:       '1',
+  });
+
+  /* ── Brillo de barrido ("shine") ── */
+  const shine = document.createElement('div');
+  Object.assign(shine.style, {
+    position:   'absolute',
+    top:        '0',
+    left:       '-60%',
+    width:      '38%',
+    height:     '100%',
+    background: 'linear-gradient(105deg,transparent 38%,rgba(255,255,255,0.08) 50%,transparent 62%)',
+    animation:  'ccShine 3.5s ease-in-out infinite',
+    pointerEvents: 'none',
+    zIndex:     '10',
+  });
+
+  /* ── Línea de brillo en el borde superior ── */
+  const topGlow = document.createElement('div');
+  Object.assign(topGlow.style, {
+    position:    'absolute',
+    top:         '-1px',
+    left:        '18%',
+    right:       '18%',
+    height:      '2px',
+    background:  `linear-gradient(90deg,transparent,${col},transparent)`,
+    borderRadius:'50%',
+  });
+
+  /* ── Helper para construir texto ── */
+  function mkTxt(tag, text, styles) {
+    const el = document.createElement(tag);
+    el.textContent = text;
+    Object.assign(el.style, styles);
+    return el;
+  }
+
+  /* ── Cabecera: badge tipo + número ── */
+  const header = document.createElement('div');
+  Object.assign(header.style, {
+    display:        'flex',
+    justifyContent: 'space-between',
+    alignItems:     'center',
+    padding:        '10px 13px 5px',
+    position:       'relative',
+    zIndex:         '2',
+  });
+  const badge = mkTxt('span', data.type, {
+    fontSize:        '5px',
+    color:           col,
+    background:      `hsla(${H},80%,40%,0.18)`,
+    border:          `1px solid hsla(${H},70%,55%,0.38)`,
+    padding:         '3px 7px',
+    borderRadius:    '4px',
+    letterSpacing:   '0.07em',
+  });
+  const num = mkTxt('span', '#' + extra.num, {
+    fontSize: '6px',
+    color:    colDim,
+  });
+  header.appendChild(badge);
+  header.appendChild(num);
+
+  /* ── Área de retrato (imagen del personaje) ── */
+  const portrait = document.createElement('div');
+  Object.assign(portrait.style, {
+    width:      '100%',
+    height:     '148px',
+    display:    'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    background: `radial-gradient(ellipse at 50% 85%, hsla(${H},80%,40%,0.22) 0%, transparent 68%)`,
+    position:   'relative',
+    zIndex:     '2',
+  });
+
+  const img = GS.images[charId];
+  if (img && img.complete && img.naturalWidth > 0) {
+    // Imagen real del personaje ya cargada
+    const imgEl = document.createElement('img');
+    imgEl.src   = img.src;
+    Object.assign(imgEl.style, {
+      height:       '130px',
+      width:        'auto',
+      objectFit:    'contain',
+      mixBlendMode: 'lighten',          // elimina el fondo negro de la foto
+      marginBottom: '6px',
+      filter:       `drop-shadow(0 0 14px hsla(${H},80%,60%,0.7))`,
+    });
+    portrait.appendChild(imgEl);
+  } else {
+    // Fallback: emoji + nombre si la imagen no cargó
+    const fb = document.createElement('div');
+    Object.assign(fb.style, {
+      fontSize:    '52px',
+      marginBottom:'10px',
+      filter:      `drop-shadow(0 0 10px hsla(${H},80%,60%,0.7))`,
+    });
+    fb.textContent = data.type.slice(0,2);
+    portrait.appendChild(fb);
+  }
+
+  /* ── Nombre y mapa ── */
+  const nameRow = document.createElement('div');
+  Object.assign(nameRow.style, { padding:'6px 13px 4px', position:'relative', zIndex:'2' });
+  nameRow.appendChild(mkTxt('div', data.name, {
+    fontSize:    '12px',
+    color:       col,
+    textShadow:  `0 0 14px hsla(${H},80%,60%,0.8)`,
+    letterSpacing:'0.1em',
+  }));
+  nameRow.appendChild(mkTxt('div', `📍 ${data.mapName}  ·  ${data.reward}`, {
+    fontSize:  '5.5px',
+    color:     colDim,
+    marginTop: '3px',
+    letterSpacing: '0.05em',
+  }));
+
+  /* ── Divisor ── */
+  function mkDivider() {
+    const d = document.createElement('div');
+    Object.assign(d.style, {
+      height:     '1px',
+      background: `linear-gradient(90deg,transparent,hsla(${H},70%,55%,0.38),transparent)`,
+      margin:     '4px 13px',
+    });
+    return d;
+  }
+
+  /* ── Stats ── */
+  const statsWrap = document.createElement('div');
+  Object.assign(statsWrap.style, {
+    padding:  '5px 13px',
+    display:  'flex',
+    flexDirection: 'column',
+    gap:      '4px',
+    position: 'relative',
+    zIndex:   '2',
+  });
+  extra.stats.forEach(s => {
+    const row = document.createElement('div');
+    Object.assign(row.style, { display:'flex', alignItems:'center', gap:'6px' });
+
+    const icon = mkTxt('span', s.icon, { fontSize:'8px', width:'14px', textAlign:'center' });
+
+    const lbl = mkTxt('span', s.label, {
+      fontSize:    '5px',
+      color:       colDim,
+      width:       '48px',
+      letterSpacing:'0.04em',
+    });
+
+    const barWrap = document.createElement('div');
+    Object.assign(barWrap.style, {
+      flex:'1', height:'5px',
+      background:`hsla(${H},60%,30%,0.25)`,
+      borderRadius:'3px', overflow:'hidden',
+    });
+    const barFill = document.createElement('div');
+    Object.assign(barFill.style, {
+      width:        '0%',
+      height:       '100%',
+      borderRadius: '3px',
+      background:   `linear-gradient(90deg, hsla(${H},70%,35%,1), hsla(${H},90%,65%,1))`,
+      transition:   `width 0.6s cubic-bezier(0.4,0,0.2,1)`,
+    });
+    barWrap.appendChild(barFill);
+
+    const valEl = mkTxt('span', s.val, {
+      fontSize:'5px', color:col, width:'18px', textAlign:'right',
+    });
+
+    row.appendChild(icon); row.appendChild(lbl);
+    row.appendChild(barWrap); row.appendChild(valEl);
+    statsWrap.appendChild(row);
+
+    // Animar barra después de un frame
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      barFill.style.width = s.val + '%';
+    }));
+  });
+
+  /* ── Strengths ── */
+  const strWrap = document.createElement('div');
+  Object.assign(strWrap.style, { padding:'4px 13px 0', position:'relative', zIndex:'2' });
+  strWrap.appendChild(mkTxt('div', '✦ STRENGTHS', {
+    fontSize:'5px', color:`hsla(${H},80%,68%,0.75)`,
+    letterSpacing:'0.07em', marginBottom:'3px',
+  }));
+  const strTags = document.createElement('div');
+  Object.assign(strTags.style, { display:'flex', flexWrap:'wrap', gap:'3px' });
+  extra.strengths.forEach(t => {
+    strTags.appendChild(mkTxt('span', t, {
+      fontSize:'4.5px', padding:'2px 5px',
+      borderRadius:'3px',
+      background:`hsla(${H},80%,40%,0.18)`,
+      border:`1px solid hsla(${H},70%,55%,0.38)`,
+      color:col,
+    }));
+  });
+  strWrap.appendChild(strTags);
+
+  /* ── Weaknesses ── */
+  const weakWrap = document.createElement('div');
+  Object.assign(weakWrap.style, { padding:'4px 13px 10px', position:'relative', zIndex:'2' });
+  weakWrap.appendChild(mkTxt('div', '⚠ WEAKNESSES', {
+    fontSize:'5px', color:'rgba(255,120,100,0.75)',
+    letterSpacing:'0.07em', marginBottom:'3px',
+  }));
+  const weakTags = document.createElement('div');
+  Object.assign(weakTags.style, { display:'flex', flexWrap:'wrap', gap:'3px' });
+  extra.weaknesses.forEach(t => {
+    weakTags.appendChild(mkTxt('span', t, {
+      fontSize:'4.5px', padding:'2px 5px',
+      borderRadius:'3px',
+      background:'rgba(255,60,60,0.12)',
+      border:'1px solid rgba(255,80,80,0.32)',
+      color:'rgba(255,160,150,0.9)',
+    }));
+  });
+  weakWrap.appendChild(weakTags);
+
+  /* ── Label de cuenta regresiva ── */
+  const cntLabel = mkTxt('div', '▶ BATTLE STARTS IN 2s...', {
+    position:       'absolute',
+    bottom:         '-38px',
+    left:           '50%',
+    transform:      'translateX(-50%)',
+    fontSize:       '6px',
+    color:          `hsla(${H},70%,65%,0.7)`,
+    letterSpacing:  '0.08em',
+    whiteSpace:     'nowrap',
+    animation:      'ccBlink 1s step-end infinite',
+    zIndex:         '2',
+  });
+
+  /* ── Inyectar @keyframes una sola vez en <head> ── */
+  if (!document.getElementById('charCardStyles')) {
+    const st = document.createElement('style');
+    st.id = 'charCardStyles';
+    st.textContent = `
+      @keyframes ccFadeIn   { from{opacity:0} to{opacity:1} }
+      @keyframes ccSlideUp  { from{opacity:0;transform:translateY(28px) scale(0.93)} to{opacity:1;transform:translateY(0) scale(1)} }
+      @keyframes ccFloat    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+      @keyframes ccPulse    { 0%,100%{transform:scale(1);opacity:0.82} 50%{transform:scale(1.09);opacity:1} }
+      @keyframes ccShine    { 0%{left:-60%} 100%{left:145%} }
+      @keyframes ccBlink    { 0%,100%{opacity:1} 50%{opacity:0.25} }
+      @keyframes ccFadeOut  { from{opacity:1;transform:scale(1)} to{opacity:0;transform:scale(1.06)} }
+    `;
+    document.head.appendChild(st);
+  }
+
+  /* ── Montar todo ── */
+  card.appendChild(shine);
+  card.appendChild(topGlow);
+  card.appendChild(header);
+  card.appendChild(portrait);
+  card.appendChild(nameRow);
+  card.appendChild(mkDivider());
+  card.appendChild(statsWrap);
+  card.appendChild(mkDivider());
+  card.appendChild(strWrap);
+  card.appendChild(mkDivider());
+  card.appendChild(weakWrap);
+  card.appendChild(cntLabel);
+
+  overlay.appendChild(halo);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+
+  /* ── Auto-dismiss tras 2.8 s con fade-out ── */
+  const SHOW_MS = 2800;
+  setTimeout(() => {
+    // Fade-out de la carta
+    overlay.style.animation = 'ccFadeOut 0.35s ease-in both';
+    setTimeout(() => {
+      overlay.remove();
+      // Rellenar pantalla de confirmación y cambiar
+      const av = document.getElementById('confirmAvatar');
+      if (av) av.src = data.imgPath;
+      document.getElementById('confirmName').textContent = data.name;
+      document.getElementById('confirmName').className   = `confirm-name ${charId}-text`;
+      document.getElementById('confirmLevel').textContent = data.type;
+      document.getElementById('confirmObj').textContent  =
+        `LOCATION: ${data.mapName}\n• OBJECTIVE: ${data.mission}`;
+      changeScreen('confirm');
+    }, 360);
+  }, SHOW_MS);
+}
+
 function selectCharacter(charId){
-  const data=CHARACTERS[charId]; if(!data) return;
-  GS.char=data;
-  playSynthSFX(charId==='molly'?'bark':'meow');
-  const av=document.getElementById('confirmAvatar'); if(av) av.src=data.imgPath;
-  document.getElementById('confirmName').textContent=data.name;
-  document.getElementById('confirmName').className=`confirm-name ${charId}-text`;
-  document.getElementById('confirmLevel').textContent=data.type;
-  document.getElementById('confirmObj').textContent=`LOCATION: ${data.mapName}\n• OBJECTIVE: ${data.mission}`;
-  changeScreen('confirm');
+  const data = CHARACTERS[charId]; if (!data) return;
+  GS.char = data;
+  playSynthSFX(charId === 'molly' ? 'bark' : 'meow');
+  // Mostrar carta antes de la pantalla de confirmación
+  showCharacterCard(charId);
 }
 
 function bindCharCards(){
